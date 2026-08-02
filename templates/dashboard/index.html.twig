@@ -24,6 +24,10 @@
     </form>
 </div>
 
+{% if isGuest %}
+<div class="notice notice-info">Guest account has limited symbols.</div>
+{% endif %}
+
 {% if not hasData %}
 <div class="card">
     <p>Not enough synced history for {{ symbol }} yet — needs at least 40 daily bars.</p>

@@ -15,9 +15,10 @@ return function (App $app) {
     $app->get('/favicon.ico', function (Request $req, Response $res) { return $res->withStatus(204); });
 
     // -- Auth (public) --
-    $app->get('/login',  [AuthController::class, 'loginPage']);
-    $app->post('/login', [AuthController::class, 'login']);
-    $app->post('/logout',[AuthController::class, 'logout']);
+    $app->get('/login',        [AuthController::class, 'loginPage']);
+    $app->post('/login',       [AuthController::class, 'login']);
+    $app->post('/login/guest', [AuthController::class, 'guestLogin']);
+    $app->post('/logout',      [AuthController::class, 'logout']);
 
     // -- Dashboard: ticker/strategy chart explorer (auth required) --
     $app->get('/', [DashboardController::class, 'index'])->add(TokenAuthMiddleware::class);

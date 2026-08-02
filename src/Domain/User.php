@@ -20,4 +20,5 @@ class User
     public function getCreatedAt(): ?DateTimeImmutable { return $this->createdAt; }
     public function getRole(): string { return $this->role; }
     public function isAdmin(): bool { return $this->role === 'admin'; }
+    public function isGuest(): bool { return $this->role === 'guest'; }
 }

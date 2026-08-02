@@ -58,6 +58,29 @@ class AuthController
     }
 
     /**
+     * No credentials needed — issues a token straight for the seeded 'guest'
+     * account (see db/migrations/0008_seed_guest_user.php). Dashboard access
+     * for that account is then limited to a fixed symbol list.
+     *
+     * @param array<string, mixed> $args
+     */
+    public function guestLogin(Request $request, Response $response, array $args): Response
+    {
+        $user = $this->userRepository->findByUsername('guest');
+
+        if ($user === null) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => 'Guest login is not available'], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+
+        $token = $this->authTokenService->generateToken($user->getId());
+        $response->getBody()->write(json_encode(['success' => true], JSON_THROW_ON_ERROR));
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withHeader('Set-Cookie', 'backtest_token=' . $token . '; Path=/; HttpOnly; SameSite=Lax');
+    }
+
+    /**
      * @param array<string, mixed> $args
      */
     public function logout(Request $request, Response $response, array $args): Response

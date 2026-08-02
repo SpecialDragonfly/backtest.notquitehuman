@@ -8,10 +8,10 @@
     <p>The tradable universe used by the dashboard, Lab, and the daily sync cron. Adding a ticker here backfills its full history immediately.</p>
 
     {% if added %}
-        <div class="admin-notice admin-notice-ok">Added {{ added }}.</div>
+        <div class="notice notice-ok">Added {{ added }}.</div>
     {% endif %}
     {% if error %}
-        <div class="admin-notice admin-notice-error">{{ error }}</div>
+        <div class="notice notice-error">{{ error }}</div>
     {% endif %}
 
     <table>

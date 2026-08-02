@@ -18,6 +18,11 @@ class DashboardController
 {
     private const DEFAULT_TICKER = 'VUKE';
 
+    // The guest account (see db/migrations/0008_seed_guest_user.php) can only
+    // chart these — enforced here, not just hidden in the dropdown, so the
+    // restriction holds even if a guest edits the ?ticker= query param.
+    private const GUEST_TICKERS = ['BARC', 'TSCO', 'VOD', 'NXT', 'SSE'];
+
     public function __construct(
         private Environment $twig,
         private TickerBacktestService $backtestService,
@@ -29,12 +34,19 @@ class DashboardController
      */
     public function index(Request $request, Response $response, array $args): Response
     {
-        $tickers = $this->tickerRepository->all();
         $params = $request->getQueryParams();
+        $user = $request->getAttribute('user');
+        $isGuest = $user instanceof User && $user->isGuest();
 
-        $ticker = (string) ($params['ticker'] ?? self::DEFAULT_TICKER);
+        $tickers = $this->tickerRepository->all();
+        if ($isGuest) {
+            $tickers = array_values(array_intersect($tickers, self::GUEST_TICKERS));
+        }
+
+        $defaultTicker = in_array(self::DEFAULT_TICKER, $tickers, true) ? self::DEFAULT_TICKER : ($tickers[0] ?? self::DEFAULT_TICKER);
+        $ticker = (string) ($params['ticker'] ?? $defaultTicker);
         if (!in_array($ticker, $tickers, true)) {
-            $ticker = self::DEFAULT_TICKER;
+            $ticker = $defaultTicker;
         }
 
         $strategy = (string) ($params['strategy'] ?? TickerBacktestService::DEFAULT_STRATEGY);
@@ -43,10 +55,10 @@ class DashboardController
         }
 
         $run = $this->backtestService->run($ticker, $strategy);
-        $user = $request->getAttribute('user');
 
         $response->getBody()->write($this->twig->render('dashboard/index.html.twig', [
             'isAdmin' => $user instanceof User && $user->isAdmin(),
+            'isGuest' => $isGuest,
             'tickers' => $tickers,
             'strategies' => TickerBacktestService::STRATEGIES,
             'selectedTicker' => $ticker,
