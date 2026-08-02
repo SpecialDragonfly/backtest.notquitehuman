@@ -1,13 +1,16 @@
 <?php
 
 use App\Backtest\YahooFinanceClient;
+use App\Controller\AdminTickerController;
 use App\Controller\AuthController;
 use App\Controller\DashboardController;
 use App\Controller\LabController;
+use App\Middleware\AdminOnlyMiddleware;
 use App\Middleware\TokenAuthMiddleware;
 use App\Repository\BacktestRunRepository;
 use App\Repository\MomentumHoldingsRepository;
 use App\Repository\PriceHistoryRepository;
+use App\Repository\TickerRepository;
 use App\Repository\UserRepository;
 use App\Service\AuthTokenService;
 use App\Service\MomentumRotationService;
@@ -101,12 +104,14 @@ return [
     MomentumHoldingsRepository::class => fn(ContainerInterface $c) => new MomentumHoldingsRepository(containerGet($c, PDO::class)),
     BacktestRunRepository::class      => fn(ContainerInterface $c) => new BacktestRunRepository(containerGet($c, PDO::class)),
     PriceHistoryRepository::class     => fn(ContainerInterface $c) => new PriceHistoryRepository(containerGet($c, PDO::class)),
+    TickerRepository::class           => fn(ContainerInterface $c) => new TickerRepository(containerGet($c, PDO::class)),
 
     // -- Services --
     YahooFinanceClient::class => fn() => new YahooFinanceClient(),
     PriceSyncService::class => fn(ContainerInterface $c) => new PriceSyncService(
         containerGet($c, YahooFinanceClient::class),
         containerGet($c, PriceHistoryRepository::class),
+        containerGet($c, TickerRepository::class),
     ),
     TickerBacktestService::class => fn(ContainerInterface $c) => new TickerBacktestService(
         containerGet($c, PriceHistoryRepository::class),
@@ -114,9 +119,11 @@ return [
     AuthTokenService::class => fn(ContainerInterface $c) => new AuthTokenService(containerGet($c, PDO::class)),
     MomentumRotationService::class => fn(ContainerInterface $c) => new MomentumRotationService(
         containerGet($c, PriceHistoryRepository::class),
+        containerGet($c, TickerRepository::class),
     ),
     StrategyComparisonService::class => fn(ContainerInterface $c) => new StrategyComparisonService(
         containerGet($c, PriceHistoryRepository::class),
+        containerGet($c, TickerRepository::class),
     ),
 
     // -- Middleware --
@@ -124,6 +131,7 @@ return [
         containerGet($c, AuthTokenService::class),
         containerGet($c, UserRepository::class),
     ),
+    AdminOnlyMiddleware::class => fn() => new AdminOnlyMiddleware(),
 
     // -- Controllers --
     AuthController::class => fn(ContainerInterface $c) => new AuthController(
@@ -134,6 +142,7 @@ return [
     DashboardController::class => fn(ContainerInterface $c) => new DashboardController(
         containerGet($c, Environment::class),
         containerGet($c, TickerBacktestService::class),
+        containerGet($c, TickerRepository::class),
     ),
     LabController::class => fn(ContainerInterface $c) => new LabController(
         containerGet($c, Environment::class),
@@ -141,5 +150,10 @@ return [
         containerGet($c, StrategyComparisonService::class),
         containerGet($c, BacktestRunRepository::class),
         containerGet($c, MomentumHoldingsRepository::class),
+    ),
+    AdminTickerController::class => fn(ContainerInterface $c) => new AdminTickerController(
+        containerGet($c, Environment::class),
+        containerGet($c, TickerRepository::class),
+        containerGet($c, PriceHistoryRepository::class),
     ),
 ];

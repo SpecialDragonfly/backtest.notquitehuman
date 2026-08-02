@@ -5,6 +5,7 @@ namespace App\Service;
 use App\Backtest\TickerUniverse;
 use App\Backtest\YahooFinanceClient;
 use App\Repository\PriceHistoryRepository;
+use App\Repository\TickerRepository;
 
 /**
  * Keeps price_history up to date. A sync only ever fetches from the day
@@ -21,6 +22,7 @@ class PriceSyncService
     public function __construct(
         private YahooFinanceClient $client,
         private PriceHistoryRepository $repository,
+        private TickerRepository $tickerRepository,
         // Yahoo's chart endpoint is undocumented and unauthenticated — a
         // short pause between requests keeps a full-universe daily sync
         // from looking like abuse. Tests pass 0 so they don't sleep.
@@ -60,7 +62,7 @@ class PriceSyncService
     {
         $symbols = array_map(
             fn(string $ticker) => TickerUniverse::toYahooSymbol($ticker),
-            TickerUniverse::blueChipsAndIndexTrackers(),
+            $this->tickerRepository->all(),
         );
         $symbols[] = self::REGIME_INDEX_SYMBOL;
 

@@ -5,7 +5,7 @@
 // plus the FTSE 100 regime index, and stores it in price_history.
 // Run manually or via cron: php bin/sync-prices.php
 
-use App\Backtest\TickerUniverse;
+use App\Repository\TickerRepository;
 use App\Service\PriceSyncService;
 use Psr\Log\LoggerInterface;
 
@@ -14,8 +14,9 @@ $container = require dirname(__DIR__) . '/config/bootstrap.php';
 
 $service = containerGet($container, PriceSyncService::class);
 $logger = containerGet($container, LoggerInterface::class);
+$tickers = containerGet($container, TickerRepository::class);
 
-fwrite(STDOUT, "Syncing " . (count(TickerUniverse::blueChipsAndIndexTrackers()) + 1) . " symbols...\n");
+fwrite(STDOUT, "Syncing " . (count($tickers->all()) + 1) . " symbols...\n");
 
 $stored = $service->syncAll();
 

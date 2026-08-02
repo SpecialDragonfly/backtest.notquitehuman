@@ -20,6 +20,7 @@ use App\Backtest\Strategies\StrategyInterface;
 use App\Backtest\TickerUniverse;
 use App\Backtest\YahooFinanceData;
 use App\Repository\PriceHistoryRepository;
+use App\Repository\TickerRepository;
 
 /**
  * Web port of the CLI prototype's compare_timeframes.php: Buy & Hold vs. the
@@ -39,8 +40,10 @@ class StrategyComparisonService
     private RSICalculator $rsiCalc;
     private ADXCalculator $adxCalc;
 
-    public function __construct(private PriceHistoryRepository $priceHistoryRepository)
-    {
+    public function __construct(
+        private PriceHistoryRepository $priceHistoryRepository,
+        private TickerRepository $tickerRepository,
+    ) {
         $this->macdCalc = new MACDCalculator();
         $this->rsiCalc = new RSICalculator();
         $this->adxCalc = new ADXCalculator();
@@ -64,7 +67,7 @@ class StrategyComparisonService
         $end = date('Y-m-d');
         $rows = [];
 
-        foreach (TickerUniverse::blueChipsAndIndexTrackers() as $ticker) {
+        foreach ($this->tickerRepository->all() as $ticker) {
             $symbol = TickerUniverse::toYahooSymbol($ticker);
             $dailyPrices = $this->priceHistoryRepository->getDailyCloses($symbol, self::START, $end);
             if (count($dailyPrices) < 40) {

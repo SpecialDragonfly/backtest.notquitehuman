@@ -1,16 +1,19 @@
 <?php
 
-use App\Backtest\TickerUniverse;
 use App\Backtest\YahooFinanceClient;
 use App\Backtest\YahooFinanceData;
 use App\Repository\PriceHistoryRepository;
+use App\Repository\TickerRepository;
 use App\Service\PriceSyncService;
 use PHPUnit\Framework\TestCase;
 
 class PriceSyncServiceTest extends TestCase
 {
+    private const TEST_TICKERS = ['VOD', 'BP.'];
+
     private PDO $db;
     private PriceHistoryRepository $repository;
+    private TickerRepository $tickers;
 
     protected function setUp(): void
     {
@@ -32,7 +35,21 @@ class PriceSyncServiceTest extends TestCase
         ');
         $this->db->exec('CREATE UNIQUE INDEX idx_symbol_date ON price_history (symbol, date)');
 
+        // Mirrors db/migrations/0007_tickers.php.
+        $this->db->exec('
+            CREATE TABLE tickers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker VARCHAR(16),
+                added_at DATETIME
+            )
+        ');
+        $this->db->exec('CREATE UNIQUE INDEX idx_ticker ON tickers (ticker)');
+
         $this->repository = new PriceHistoryRepository($this->db);
+        $this->tickers = new TickerRepository($this->db);
+        foreach (self::TEST_TICKERS as $ticker) {
+            $this->tickers->add($ticker);
+        }
     }
 
     /**
@@ -61,7 +78,7 @@ class PriceSyncServiceTest extends TestCase
     public function testBackfillsFromLongHistoryStartWhenSymbolHasNoStoredData(): void
     {
         $client = $this->recordingClient();
-        $service = new PriceSyncService($client, $this->repository, delayMicroseconds: 0);
+        $service = new PriceSyncService($client, $this->repository, $this->tickers, delayMicroseconds: 0);
 
         $stored = $service->sync('VOD.L');
 
@@ -76,7 +93,7 @@ class PriceSyncServiceTest extends TestCase
         ]);
 
         $client = $this->recordingClient();
-        (new PriceSyncService($client, $this->repository, delayMicroseconds: 0))->sync('VOD.L');
+        (new PriceSyncService($client, $this->repository, $this->tickers, delayMicroseconds: 0))->sync('VOD.L');
 
         $this->assertEquals(['VOD.L', '2026-01-11', date('Y-m-d')], $client->calls[0]);
     }
@@ -89,7 +106,7 @@ class PriceSyncServiceTest extends TestCase
         ]);
 
         $client = $this->recordingClient();
-        $stored = (new PriceSyncService($client, $this->repository, delayMicroseconds: 0))->sync('VOD.L');
+        $stored = (new PriceSyncService($client, $this->repository, $this->tickers, delayMicroseconds: 0))->sync('VOD.L');
 
         $this->assertEquals(0, $stored);
         $this->assertEmpty($client->calls);
@@ -98,7 +115,7 @@ class PriceSyncServiceTest extends TestCase
     public function testSyncPersistsFetchedPricesViaTheRepository(): void
     {
         $client = $this->recordingClient(barsPerCall: 3);
-        $service = new PriceSyncService($client, $this->repository, delayMicroseconds: 0);
+        $service = new PriceSyncService($client, $this->repository, $this->tickers, delayMicroseconds: 0);
 
         $stored = $service->sync('VOD.L');
 
@@ -109,13 +126,13 @@ class PriceSyncServiceTest extends TestCase
     public function testSyncAllCoversTheFullTickerUniversePlusTheRegimeIndex(): void
     {
         $client = $this->recordingClient();
-        $service = new PriceSyncService($client, $this->repository, delayMicroseconds: 0);
+        $service = new PriceSyncService($client, $this->repository, $this->tickers, delayMicroseconds: 0);
 
         $service->syncAll();
 
         $requestedSymbols = array_column($client->calls, 0);
         $this->assertContains('^FTSE', $requestedSymbols);
         $this->assertContains('VOD.L', $requestedSymbols);
-        $this->assertCount(count(TickerUniverse::blueChipsAndIndexTrackers()) + 1, $requestedSymbols);
+        $this->assertCount(count(self::TEST_TICKERS) + 1, $requestedSymbols);
     }
 }

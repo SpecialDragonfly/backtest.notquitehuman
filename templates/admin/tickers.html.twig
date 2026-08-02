@@ -1,0 +1,57 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Tickers — Admin{% endblock %}
+
+{% block body %}
+<div class="card">
+    <h1>Tickers</h1>
+    <p>The tradable universe used by the dashboard, Lab, and the daily sync cron. Adding a ticker here backfills its full history automatically on the next daily sync.</p>
+
+    {% if added %}
+        <div class="admin-notice admin-notice-ok">Added "{{ added }}" — it'll be backfilled on the next daily sync.</div>
+    {% endif %}
+    {% if error %}
+        <div class="admin-notice admin-notice-error">{{ error }}</div>
+    {% endif %}
+
+    <table>
+        <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Yahoo symbol</th>
+                <th>First date</th>
+                <th>Last date</th>
+                <th class="num">Days of data</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+            <tr>
+                <td>{{ row.ticker }}</td>
+                <td>{{ row.symbol }}</td>
+                <td>{{ row.firstDate ?: '—' }}</td>
+                <td>{{ row.lastDate ?: '—' }}</td>
+                <td class="num">
+                    {% if row.days > 0 %}
+                        {{ row.days }}
+                    {% else %}
+                        <span class="badge badge-off">not synced yet</span>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2>Add a ticker</h2>
+    <form method="post" action="/admin/tickers/add" class="picker-row">
+        <div class="form-group">
+            <label for="ticker">LSE-style ticker</label>
+            <input type="text" id="ticker" name="ticker" placeholder="e.g. VOD, BP., BT.A" required>
+        </div>
+        <button type="submit" class="btn">Add ticker</button>
+    </form>
+</div>
+{% endblock %}

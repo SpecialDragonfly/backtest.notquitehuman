@@ -43,6 +43,32 @@ class PriceHistoryRepository
     }
 
     /**
+     * How much history is stored per symbol — first/last date and row count.
+     * One grouped query for every symbol at once, keyed by symbol, for the
+     * admin ticker list rather than one query per ticker.
+     *
+     * @return array<string, array{firstDate: string, lastDate: string, days: int}>
+     */
+    public function getCoverageSummary(): array
+    {
+        $stmt = $this->db->query(
+            'SELECT symbol, MIN(date) AS first_date, MAX(date) AS last_date, COUNT(*) AS days
+             FROM price_history
+             GROUP BY symbol'
+        );
+
+        $summary = [];
+        foreach ($stmt !== false ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [] as $row) {
+            $summary[(string) $row['symbol']] = [
+                'firstDate' => (string) $row['first_date'],
+                'lastDate' => (string) $row['last_date'],
+                'days' => (int) $row['days'],
+            ];
+        }
+        return $summary;
+    }
+
+    /**
      * The most recent date already stored for a symbol, so a sync only needs
      * to fetch from here onward. Null if nothing has been synced yet.
      */

@@ -27,10 +27,10 @@ class UserRepository
         return is_array($row) ? $this->hydrate($row) : null;
     }
 
-    public function create(string $username, string $hashedPassword): void
+    public function create(string $username, string $hashedPassword, string $role = 'user'): void
     {
-        $this->db->prepare('INSERT INTO users (username, password, created) VALUES (?, ?, ?)')
-            ->execute([$username, $hashedPassword, date('Y-m-d H:i:s')]);
+        $this->db->prepare('INSERT INTO users (username, password, created, role) VALUES (?, ?, ?, ?)')
+            ->execute([$username, $hashedPassword, date('Y-m-d H:i:s'), $role]);
     }
 
     /**
@@ -45,6 +45,7 @@ class UserRepository
             $this->toStringValue($row['username']),
             $this->toStringValue($row['password']),
             $created !== null ? new DateTimeImmutable($this->toStringValue($created)) : null,
+            isset($row['role']) ? $this->toStringValue($row['role']) : 'user',
         );
     }
 

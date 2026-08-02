@@ -11,10 +11,13 @@ class User
         private string $username,
         private string $passwordHash,
         private ?DateTimeImmutable $createdAt,
+        private string $role = 'user',
     ) {}
 
     public function getId(): int { return $this->id; }
     public function getUsername(): string { return $this->username; }
     public function getPasswordHash(): string { return $this->passwordHash; }
     public function getCreatedAt(): ?DateTimeImmutable { return $this->createdAt; }
+    public function getRole(): string { return $this->role; }
+    public function isAdmin(): bool { return $this->role === 'admin'; }
 }

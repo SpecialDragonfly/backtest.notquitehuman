@@ -14,6 +14,7 @@ use App\Backtest\TickerUniverse;
 use App\Backtest\YahooFinanceClient;
 use App\Backtest\YahooFinanceData;
 use App\Repository\PriceHistoryRepository;
+use App\Repository\TickerRepository;
 use Psr\Log\LoggerInterface;
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
@@ -22,12 +23,13 @@ $container = require dirname(__DIR__) . '/config/bootstrap.php';
 $client = containerGet($container, YahooFinanceClient::class);
 $repository = containerGet($container, PriceHistoryRepository::class);
 $logger = containerGet($container, LoggerInterface::class);
+$tickers = containerGet($container, TickerRepository::class);
 
 $cacheDir = dirname(__DIR__) . '/var/price-cache';
 
 $symbols = array_map(
     fn(string $ticker) => TickerUniverse::toYahooSymbol($ticker),
-    TickerUniverse::blueChipsAndIndexTrackers(),
+    $tickers->all(),
 );
 $symbols[] = '^FTSE';
 

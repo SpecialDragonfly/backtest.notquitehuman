@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Domain\User;
 use App\Repository\BacktestRunRepository;
 use App\Repository\MomentumHoldingsRepository;
 use App\Service\MomentumRotationService;
@@ -35,6 +36,7 @@ class LabController
         $current = $this->holdingsRepository->getCurrentHoldings();
 
         $response->getBody()->write($this->twig->render('lab/index.html.twig', [
+            'isAdmin' => $this->isAdmin($request),
             'result' => $cached['result'] ?? null,
             'computedAt' => $cached['computedAt'] ?? null,
             'asOfMonth' => $target['month'],
@@ -79,7 +81,10 @@ class LabController
      */
     public function customForm(Request $request, Response $response, array $args): Response
     {
-        $response->getBody()->write($this->twig->render('lab/custom.html.twig', ['result' => null]));
+        $response->getBody()->write($this->twig->render('lab/custom.html.twig', [
+            'isAdmin' => $this->isAdmin($request),
+            'result' => null,
+        ]));
         return $response;
     }
 
@@ -98,6 +103,7 @@ class LabController
         $rebalanceLog = $result->rebalanceLog;
 
         $response->getBody()->write($this->twig->render('lab/custom.html.twig', [
+            'isAdmin' => $this->isAdmin($request),
             'result' => [
                 'topN' => $topN,
                 'lookbackMonths' => $lookback,
@@ -109,6 +115,12 @@ class LabController
             ],
         ]));
         return $response;
+    }
+
+    private function isAdmin(Request $request): bool
+    {
+        $user = $request->getAttribute('user');
+        return $user instanceof User && $user->isAdmin();
     }
 
     private function intFromBody(mixed $body, string $key, int $default): int

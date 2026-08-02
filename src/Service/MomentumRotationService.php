@@ -6,6 +6,7 @@ use App\Backtest\MomentumRotationBacktester;
 use App\Backtest\MomentumRotationResult;
 use App\Backtest\TickerUniverse;
 use App\Repository\PriceHistoryRepository;
+use App\Repository\TickerRepository;
 
 /**
  * Web-facing wrapper around the ported momentum-rotation engine
@@ -24,7 +25,10 @@ class MomentumRotationService
     // Full validated backtest window (includes the 2008 and 2020 crashes).
     private const LONG_HISTORY_START = '2008-01-01';
 
-    public function __construct(private PriceHistoryRepository $priceHistoryRepository) {}
+    public function __construct(
+        private PriceHistoryRepository $priceHistoryRepository,
+        private TickerRepository $tickerRepository,
+    ) {}
 
     /**
      * This month's target holdings — only fetches enough trailing history to
@@ -83,7 +87,7 @@ class MomentumRotationService
         $end = date('Y-m-d');
 
         $pricesByTicker = [];
-        foreach (TickerUniverse::blueChipsAndIndexTrackers() as $ticker) {
+        foreach ($this->tickerRepository->all() as $ticker) {
             $symbol = TickerUniverse::toYahooSymbol($ticker);
             $prices = $this->priceHistoryRepository->getDailyCloses($symbol, $start, $end);
             if (count($prices) < 60) {

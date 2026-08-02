@@ -2,7 +2,8 @@
 
 namespace App\Controller;
 
-use App\Backtest\TickerUniverse;
+use App\Domain\User;
+use App\Repository\TickerRepository;
 use App\Service\TickerBacktestService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -20,6 +21,7 @@ class DashboardController
     public function __construct(
         private Environment $twig,
         private TickerBacktestService $backtestService,
+        private TickerRepository $tickerRepository,
     ) {}
 
     /**
@@ -27,7 +29,7 @@ class DashboardController
      */
     public function index(Request $request, Response $response, array $args): Response
     {
-        $tickers = TickerUniverse::blueChipsAndIndexTrackers();
+        $tickers = $this->tickerRepository->all();
         $params = $request->getQueryParams();
 
         $ticker = (string) ($params['ticker'] ?? self::DEFAULT_TICKER);
@@ -41,8 +43,10 @@ class DashboardController
         }
 
         $run = $this->backtestService->run($ticker, $strategy);
+        $user = $request->getAttribute('user');
 
         $response->getBody()->write($this->twig->render('dashboard/index.html.twig', [
+            'isAdmin' => $user instanceof User && $user->isAdmin(),
             'tickers' => $tickers,
             'strategies' => TickerBacktestService::STRATEGIES,
             'selectedTicker' => $ticker,
