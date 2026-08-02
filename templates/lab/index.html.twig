@@ -1,0 +1,59 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Lab — Backtest{% endblock %}
+
+{% block body %}
+<div class="card">
+    <h1>Strategy comparison</h1>
+    <p>Buy &amp; Hold vs. the MACD/RSI/ADX variants, across the full blue-chip/index universe, back to 2008. Recomputed on demand only — this involves ~66 live price fetches.</p>
+    <form method="post" action="/lab/run">
+        <button type="submit" class="btn">Run comparison now</button>
+    </form>
+    <p><a href="/lab/custom">Or try a custom momentum-rotation run &rarr;</a></p>
+</div>
+
+{% if result is null %}
+<div class="card">
+    <p>No comparison has been run yet. Click "Run comparison now" above — it'll take a little while on a cold cache.</p>
+</div>
+{% else %}
+<div class="card">
+    <p>Last computed: {{ computedAt }}</p>
+
+    <h2>Median return / hit rate (outlier-resistant)</h2>
+    <p>A handful of huge single-trade returns can dominate a mean — this view is medians and % of tickers profitable, which is harder to fool.</p>
+    <table>
+        <thead><tr><th>Strategy</th><th>Timeframe</th><th>Median return</th><th>Hit rate</th><th>n</th></tr></thead>
+        <tbody>
+        {% for row in result.medianSummary %}
+            <tr>
+                <td>{{ row.strategy }}</td>
+                <td>{{ row.timeframe }}</td>
+                <td>{{ row.medianReturn }}%</td>
+                <td>{{ row.hitRate }}%</td>
+                <td>{{ row.n }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Mean summary</h2>
+    <table>
+        <thead><tr><th>Strategy</th><th>Timeframe</th><th>Trades</th><th>Win %</th><th>Return %</th><th>Max DD %</th><th>% Profitable</th></tr></thead>
+        <tbody>
+        {% for row in result.meanSummary %}
+            <tr>
+                <td>{{ row.strategy }}</td>
+                <td>{{ row.timeframe }}</td>
+                <td>{{ row.trades }}</td>
+                <td>{{ row.winRate }}%</td>
+                <td>{{ row.return }}%</td>
+                <td>{{ row.maxDrawdown }}%</td>
+                <td>{{ row.profitablePercent }}%</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

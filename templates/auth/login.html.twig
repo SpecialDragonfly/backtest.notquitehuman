@@ -1,0 +1,56 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Login — Backtest{% endblock %}
+
+{% block body %}
+<div class="auth-container">
+    <div class="auth-card">
+        <h1>Login</h1>
+        <div class="auth-error" id="authError" style="display:none"></div>
+        <form id="loginForm" autocomplete="off">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Login</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById('authError');
+    errorEl.style.display = 'none';
+
+    const body = new URLSearchParams({
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+    });
+
+    try {
+        const res = await fetch('/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body,
+        });
+        const data = await res.json();
+        if (data.success) {
+            window.location.href = '/';
+        } else {
+            errorEl.textContent = data.error || 'Login failed';
+            errorEl.style.display = 'block';
+        }
+    } catch {
+        errorEl.textContent = 'An error occurred. Please try again.';
+        errorEl.style.display = 'block';
+    }
+});
+</script>
+{% endblock %}

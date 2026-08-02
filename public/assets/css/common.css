@@ -1,0 +1,77 @@
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: #0f1115;
+    color: #e6e8eb;
+    line-height: 1.5;
+}
+a { color: #6ea8fe; }
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #262a33;
+}
+.logo-text { font-weight: 600; font-size: 1.1rem; color: #e6e8eb; text-decoration: none; }
+.header-nav a { margin-left: 1.25rem; text-decoration: none; font-size: 0.95rem; }
+
+.main-content { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+.card {
+    background: #161a21;
+    border: 1px solid #262a33;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #262a33; }
+th { color: #9aa1ac; font-weight: 500; }
+
+.badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+.badge-buy { background: #163a24; color: #4ade80; }
+.badge-sell { background: #3a1616; color: #f87171; }
+.badge-hold { background: #1e2430; color: #9aa1ac; }
+.badge-on { background: #163a24; color: #4ade80; }
+.badge-off { background: #3a2a16; color: #fbbf24; }
+
+.btn {
+    display: inline-block;
+    padding: 0.55rem 1.1rem;
+    border-radius: 6px;
+    border: none;
+    background: #3b6fe0;
+    color: #fff;
+    font-weight: 500;
+    cursor: pointer;
+    font-size: 0.95rem;
+    text-decoration: none;
+}
+.btn:hover { background: #345fc4; }
+.btn-secondary { background: #262a33; }
+.btn-secondary:hover { background: #30343f; }
+
+.form-group { margin-bottom: 1rem; }
+label { display: block; margin-bottom: 0.35rem; font-size: 0.9rem; color: #9aa1ac; }
+input, select {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border-radius: 6px;
+    border: 1px solid #262a33;
+    background: #0f1115;
+    color: #e6e8eb;
+    font-size: 0.95rem;
+}
+
+.auth-container { display: flex; justify-content: center; padding-top: 3rem; }
+.auth-card { width: 100%; max-width: 340px; background: #161a21; border: 1px solid #262a33; border-radius: 8px; padding: 2rem; }
+.auth-error { background: #3a1616; color: #f87171; padding: 0.6rem 0.8rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }
+
+.stat-row { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.stat { flex: 1; min-width: 140px; }
+.stat-label { color: #9aa1ac; font-size: 0.85rem; }
+.stat-value { font-size: 1.5rem; font-weight: 600; }

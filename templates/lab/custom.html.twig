@@ -1,0 +1,61 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Lab — Custom run{% endblock %}
+
+{% block body %}
+<div class="card">
+    <h1>Custom momentum-rotation run</h1>
+    <p>Full history back to 2008. Not persisted — just a one-off exploration.</p>
+    <form method="post" action="/lab/custom">
+        <div class="form-group">
+            <label for="topn">Top N</label>
+            <input type="number" id="topn" name="topn" value="{{ result.topN ?? 5 }}" min="1" max="20" required>
+        </div>
+        <div class="form-group">
+            <label for="lookback">Lookback (months)</label>
+            <input type="number" id="lookback" name="lookback" value="{{ result.lookbackMonths ?? 12 }}" min="1" max="24" required>
+        </div>
+        <div class="form-group">
+            <label for="regime">Regime filter</label>
+            <select id="regime" name="regime">
+                <option value="on" {{ (result is null or result.regimeOn) ? 'selected' : '' }}>On</option>
+                <option value="off" {{ (result is not null and not result.regimeOn) ? 'selected' : '' }}>Off</option>
+            </select>
+        </div>
+        <button type="submit" class="btn">Run</button>
+    </form>
+</div>
+
+{% if result is not null %}
+<div class="card">
+    <div class="stat-row">
+        <div class="stat">
+            <div class="stat-label">Return</div>
+            <div class="stat-value">{{ result.return }}%</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Max drawdown</div>
+            <div class="stat-value">{{ result.maxDrawdown }}%</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Rebalances</div>
+            <div class="stat-value">{{ result.rebalanceCount }}</div>
+        </div>
+    </div>
+
+    <h2>Most recent rebalances</h2>
+    <table>
+        <thead><tr><th>Month</th><th>Regime</th><th>Holdings</th></tr></thead>
+        <tbody>
+        {% for entry in result.recent %}
+            <tr>
+                <td>{{ entry.month }}</td>
+                <td>{{ entry.regime }}</td>
+                <td>{{ entry.holdings|join(', ') ?: '(cash)' }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}
