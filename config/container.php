@@ -5,13 +5,18 @@ use App\Controller\AdminTickerController;
 use App\Controller\AuthController;
 use App\Controller\DashboardController;
 use App\Controller\LabController;
+use App\Line\FormulaEvaluator;
+use App\Line\TriggerEvaluationService;
 use App\Middleware\AdminOnlyMiddleware;
 use App\Middleware\GuestBlockMiddleware;
 use App\Middleware\TokenAuthMiddleware;
+use App\Repository\AlertRepository;
 use App\Repository\BacktestRunRepository;
+use App\Repository\LineRepository;
 use App\Repository\MomentumHoldingsRepository;
 use App\Repository\PriceHistoryRepository;
 use App\Repository\TickerRepository;
+use App\Repository\TriggerRepository;
 use App\Repository\UserRepository;
 use App\Service\AuthTokenService;
 use App\Service\MomentumRotationService;
@@ -106,6 +111,9 @@ return [
     BacktestRunRepository::class      => fn(ContainerInterface $c) => new BacktestRunRepository(containerGet($c, PDO::class)),
     PriceHistoryRepository::class     => fn(ContainerInterface $c) => new PriceHistoryRepository(containerGet($c, PDO::class)),
     TickerRepository::class           => fn(ContainerInterface $c) => new TickerRepository(containerGet($c, PDO::class)),
+    LineRepository::class             => fn(ContainerInterface $c) => new LineRepository(containerGet($c, PDO::class)),
+    TriggerRepository::class          => fn(ContainerInterface $c) => new TriggerRepository(containerGet($c, PDO::class)),
+    AlertRepository::class            => fn(ContainerInterface $c) => new AlertRepository(containerGet($c, PDO::class)),
 
     // -- Services --
     YahooFinanceClient::class => fn() => new YahooFinanceClient(),
@@ -125,6 +133,11 @@ return [
     StrategyComparisonService::class => fn(ContainerInterface $c) => new StrategyComparisonService(
         containerGet($c, PriceHistoryRepository::class),
         containerGet($c, TickerRepository::class),
+    ),
+    FormulaEvaluator::class => fn() => new FormulaEvaluator(),
+    TriggerEvaluationService::class => fn(ContainerInterface $c) => new TriggerEvaluationService(
+        containerGet($c, LineRepository::class),
+        containerGet($c, FormulaEvaluator::class),
     ),
 
     // -- Middleware --
