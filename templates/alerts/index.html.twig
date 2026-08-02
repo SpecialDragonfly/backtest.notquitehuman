@@ -1,0 +1,33 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Alerts — Backtest{% endblock %}
+
+{% block body %}
+<div class="card">
+    <h1>Alerts</h1>
+    <p>Live firings of your armed <a href="/triggers">Triggers</a>, recorded the day they actually happen via the daily sync.</p>
+
+    {% if rows is empty %}
+        <p>No alerts yet.</p>
+    {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Trigger</th>
+                    <th>Ticker</th>
+                    <th>Fired on</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td>{{ row.triggerName }}</td>
+                    <td>{{ row.ticker }}</td>
+                    <td>{{ row.alert.firedOn }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</div>
+{% endblock %}

@@ -32,6 +32,20 @@ class TriggerRepository
         return array_map(fn(array $row) => $this->hydrate($row), $stmt->fetchAll(PDO::FETCH_ASSOC));
     }
 
+    /**
+     * @return string[] Distinct LSE ticker codes with at least one active
+     *     trigger — the live cron path's starting point, so it only ever
+     *     touches tickers someone actually has a trigger on.
+     */
+    public function distinctActiveTickers(): array
+    {
+        $stmt = $this->db->query('SELECT DISTINCT ticker FROM triggers WHERE is_active = 1');
+        return array_map(
+            fn(array $row) => (string) $row['ticker'],
+            $stmt !== false ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [],
+        );
+    }
+
     public function find(int $id): ?Trigger
     {
         $stmt = $this->db->prepare('SELECT * FROM triggers WHERE id = ? LIMIT 1');

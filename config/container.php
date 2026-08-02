@@ -2,6 +2,7 @@
 
 use App\Backtest\YahooFinanceClient;
 use App\Controller\AdminTickerController;
+use App\Controller\AlertController;
 use App\Controller\AuthController;
 use App\Controller\DashboardController;
 use App\Controller\LabController;
@@ -25,6 +26,7 @@ use App\Service\MomentumRotationService;
 use App\Service\PriceSyncService;
 use App\Service\StrategyComparisonService;
 use App\Service\TickerBacktestService;
+use App\Service\TriggerAlertService;
 use Monolog\Handler\StreamHandler;
 use Monolog\Level;
 use Monolog\Logger;
@@ -141,6 +143,12 @@ return [
         containerGet($c, LineRepository::class),
         containerGet($c, FormulaEvaluator::class),
     ),
+    TriggerAlertService::class => fn(ContainerInterface $c) => new TriggerAlertService(
+        containerGet($c, TriggerRepository::class),
+        containerGet($c, TickerBacktestService::class),
+        containerGet($c, TriggerEvaluationService::class),
+        containerGet($c, AlertRepository::class),
+    ),
 
     // -- Middleware --
     TokenAuthMiddleware::class => fn(ContainerInterface $c) => new TokenAuthMiddleware(
@@ -187,5 +195,10 @@ return [
         containerGet($c, TickerRepository::class),
         containerGet($c, TriggerEvaluationService::class),
         containerGet($c, TickerBacktestService::class),
+    ),
+    AlertController::class => fn(ContainerInterface $c) => new AlertController(
+        containerGet($c, Environment::class),
+        containerGet($c, AlertRepository::class),
+        containerGet($c, TriggerRepository::class),
     ),
 ];

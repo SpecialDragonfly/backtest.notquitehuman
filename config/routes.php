@@ -4,6 +4,7 @@ use App\Controller\AdminTickerController;
 use App\Controller\AuthController;
 use App\Controller\DashboardController;
 use App\Controller\LabController;
+use App\Controller\AlertController;
 use App\Controller\LineController;
 use App\Controller\TriggerController;
 use App\Middleware\AdminOnlyMiddleware;
@@ -46,6 +47,9 @@ return function (App $app) {
     $app->post('/triggers',             [TriggerController::class, 'create'])->add(GuestBlockMiddleware::class)->add(TokenAuthMiddleware::class);
     $app->post('/triggers/{id}/toggle', [TriggerController::class, 'toggle'])->add(GuestBlockMiddleware::class)->add(TokenAuthMiddleware::class);
     $app->post('/triggers/{id}/delete', [TriggerController::class, 'delete'])->add(GuestBlockMiddleware::class)->add(TokenAuthMiddleware::class);
+
+    // -- Alerts: read-only log of live trigger firings (auth required, hidden from guests) --
+    $app->get('/alerts', [AlertController::class, 'index'])->add(GuestBlockMiddleware::class)->add(TokenAuthMiddleware::class);
 
     // -- Admin: ticker universe management (admin only) --
     // TokenAuthMiddleware is added last so it runs first (Slim runs
