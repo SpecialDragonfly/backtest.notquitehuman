@@ -139,13 +139,7 @@ class MomentumRotationBacktester
     {
         $result = [];
         foreach ($pricesByTicker as $ticker => $prices) {
-            $monthly = [];
-            foreach ($prices as $p) {
-                // Prices are chronological, so the last write per month wins,
-                // giving the last available close of that month.
-                $monthly[date('Y-m', $p->timestamp)] = $p->close;
-            }
-            $result[$ticker] = $monthly;
+            $result[$ticker] = PriceAggregator::toMonthly($prices);
         }
         return $result;
     }
