@@ -36,7 +36,7 @@ class PriceHistoryRepository
                 low: (float) $row['low'],
                 close: (float) $row['close'],
                 adjClose: (float) $row['adj_close'],
-                volume: (int) $row['volume'],
+                volume: (float) $row['volume'],
             ),
             $stmt->fetchAll(PDO::FETCH_ASSOC),
         );

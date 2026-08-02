@@ -89,7 +89,7 @@ class YahooFinanceClient
                 low: (float) $quotes['low'][$i],
                 close: (float) $quotes['close'][$i],
                 adjClose: (float) $adjustedClose['adjclose'][$i],
-                volume: (int) $quotes['volume'][$i],
+                volume: (float) $quotes['volume'][$i],
             );
         }
 

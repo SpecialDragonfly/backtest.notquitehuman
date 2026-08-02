@@ -13,7 +13,9 @@ class YahooFinanceData
         public readonly float $low,
         public readonly float $close,
         public readonly float $adjClose,
-        public readonly int $volume
+        // float, not int — some tickers' volume exceeds PHP_INT_MAX on the
+        // 32-bit ARM production host, silently corrupting an (int) cast there.
+        public readonly float $volume
     ) {}
 
     public function getDate(): string
