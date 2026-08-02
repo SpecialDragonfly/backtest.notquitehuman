@@ -79,10 +79,12 @@ class DashboardController
                 $linesById[$line->getId()] = $line;
             }
             foreach ($selectedLineIds as $id) {
+                $formula = $linesById[$id]->getFormula();
                 $chart['lines'][] = [
                     'id' => $id,
                     'name' => $linesById[$id]->getName(),
-                    'points' => $this->formulaEvaluator->evaluate($linesById[$id]->getFormula(), $prices),
+                    'scale' => FormulaEvaluator::scaleFor($formula),
+                    'points' => $this->formulaEvaluator->evaluate($formula, $prices),
                 ];
             }
         }

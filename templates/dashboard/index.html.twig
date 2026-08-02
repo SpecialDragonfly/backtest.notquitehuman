@@ -77,6 +77,12 @@
         <span><span class="legend-dot" style="background:#1a8754"></span> Buy</span>
         <span><span class="legend-dot" style="background:#c0362c"></span> Sell</span>
     </div>
+
+    <div class="chart-wrap secondary-chart hidden" id="oscillatorPanel">
+        <canvas id="oscillatorChart"></canvas>
+        <div class="chart-tooltip" id="oscillatorTooltip"></div>
+    </div>
+    <div class="chart-legend" id="oscillatorLegend"></div>
 </div>
 
 <div class="card">
@@ -147,12 +153,17 @@
         return padding.top + (1 - (c - minC) / (maxC - minC)) * (h - padding.top - padding.bottom);
     }
 
-    // Overlay Lines share the price y-axis (see App\Line\FormulaEvaluator) —
-    // sensible for price-scaled lines (SMA/EMA/Price/Constant), but an RSI
-    // line will look squashed/off-scale here since it's plotted 0-100
-    // against price's own range. Known v1 limitation, not a bug.
-    var overlayLines = data.lines || [];
+    // Price-scaled Lines (SMA/EMA/Price/Constant) share the main chart's
+    // price axis; oscillator-scaled ones (RSI — see
+    // App\Line\FormulaEvaluator::scaleFor()) get their own fixed 0-100
+    // panel below instead of being squashed against the price range.
+    var allLines = data.lines || [];
+    var overlayLines = allLines.filter(function (l) { return l.scale !== 'oscillator'; });
+    var oscillatorLines = allLines.filter(function (l) { return l.scale === 'oscillator'; });
     var palette = ['#b3690a', '#7e3ff2', '#0a9396', '#c9184a', '#495057'];
+    // Indexed from the full selection, not per-panel, so a line keeps the
+    // same color whether it lands on the main chart or the secondary panel.
+    function colorFor(line) { return palette[allLines.indexOf(line) % palette.length]; }
 
     function draw() {
         var w = canvas.clientWidth, h = canvas.clientHeight;
@@ -189,8 +200,8 @@
 
         // Overlay lines — one path per line, skipping gaps where a formula
         // is still warming up (v === null) rather than drawing through them.
-        overlayLines.forEach(function (line, li) {
-            ctx.strokeStyle = palette[li % palette.length];
+        overlayLines.forEach(function (line) {
+            ctx.strokeStyle = colorFor(line);
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             var started = false;
@@ -212,16 +223,18 @@
         });
     }
 
-    var legend = document.getElementById('chartLegend');
-    overlayLines.forEach(function (line, li) {
+    function addLegendEntry(legendEl, line) {
         var span = document.createElement('span');
         var dot = document.createElement('span');
         dot.className = 'legend-line';
-        dot.style.background = palette[li % palette.length];
+        dot.style.background = colorFor(line);
         span.appendChild(dot);
         span.appendChild(document.createTextNode(' ' + line.name));
-        legend.appendChild(span);
-    });
+        legendEl.appendChild(span);
+    }
+
+    var legend = document.getElementById('chartLegend');
+    overlayLines.forEach(function (line) { addLegendEntry(legend, line); });
 
     function nearestIndex(x, w) {
         var t = minT + (x - padding.left) / (w - padding.left - padding.right) * (maxT - minT);
@@ -255,8 +268,87 @@
         tooltip.style.opacity = '0';
     });
 
-    draw();
-    window.addEventListener('resize', draw);
+    // -- Secondary (oscillator) panel — fixed 0-100 scale, its own tooltip,
+    // shown only when at least one selected Line is oscillator-scaled.
+    var oscPanel = document.getElementById('oscillatorPanel');
+    var oscCanvas = document.getElementById('oscillatorChart');
+    var oscTooltip = document.getElementById('oscillatorTooltip');
+    var oscLegend = document.getElementById('oscillatorLegend');
+
+    function drawOscillator() {
+        if (oscillatorLines.length === 0) return;
+        var octx = oscCanvas.getContext('2d');
+        var w = oscCanvas.clientWidth, h = oscCanvas.clientHeight;
+        oscCanvas.width = w * dpr;
+        oscCanvas.height = h * dpr;
+        octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        octx.clearRect(0, 0, w, h);
+
+        function oscYFor(v, h) {
+            return padding.top + (1 - v / 100) * (h - padding.top - padding.bottom);
+        }
+
+        // Gridlines at 0/30/70/100, with 30/70 (the conventional RSI
+        // overbought/oversold levels) picked out in amber like a reference band.
+        [0, 30, 70, 100].forEach(function (v) {
+            var y = oscYFor(v, h);
+            octx.strokeStyle = (v === 30 || v === 70) ? '#e0a94a' : '#edf0f2';
+            octx.lineWidth = 1;
+            octx.beginPath();
+            octx.moveTo(padding.left, y);
+            octx.lineTo(w - padding.right, y);
+            octx.stroke();
+            octx.fillStyle = '#5b6472';
+            octx.font = '11px Inter, sans-serif';
+            octx.fillText(String(v), 6, y + 3);
+        });
+
+        oscillatorLines.forEach(function (line) {
+            octx.strokeStyle = colorFor(line);
+            octx.lineWidth = 1.5;
+            octx.beginPath();
+            var started = false;
+            line.points.forEach(function (p) {
+                if (p.v === null) { started = false; return; }
+                var x = xFor(p.t, w), y = oscYFor(p.v, h);
+                if (!started) { octx.moveTo(x, y); started = true; } else { octx.lineTo(x, y); }
+            });
+            octx.stroke();
+        });
+    }
+
+    if (oscillatorLines.length > 0) {
+        oscPanel.classList.remove('hidden');
+        oscillatorLines.forEach(function (line) { addLegendEntry(oscLegend, line); });
+
+        oscCanvas.addEventListener('mousemove', function (e) {
+            var rect = oscCanvas.getBoundingClientRect();
+            var x = e.clientX - rect.left, w = oscCanvas.clientWidth, h = oscCanvas.clientHeight;
+            var i = nearestIndex(x, w);
+            var p = prices[i];
+            if (!p) return;
+            var px = xFor(p.t, w);
+            var d = new Date(p.t * 1000);
+            var text = d.toISOString().slice(0, 10);
+            var any = false;
+            oscillatorLines.forEach(function (line) {
+                var lv = line.points[i] ? line.points[i].v : null;
+                if (lv !== null) { text += '\n' + line.name + ': ' + lv.toFixed(2); any = true; }
+            });
+            if (!any) return;
+            oscTooltip.style.left = px + 'px';
+            oscTooltip.style.top = '10px';
+            oscTooltip.style.opacity = '1';
+            oscTooltip.textContent = text;
+        });
+        oscCanvas.addEventListener('mouseleave', function () {
+            oscTooltip.style.opacity = '0';
+        });
+    }
+
+    function redraw() { draw(); drawOscillator(); }
+    redraw();
+    window.addEventListener('resize', redraw);
 })();
 </script>
 {% endblock %}

@@ -23,6 +23,26 @@ class FormulaEvaluator
 {
     public const FUNCTIONS = ['PRICE', 'SMA', 'EMA', 'RSI', 'CONSTANT'];
 
+    public const SCALE_PRICE = 'price';
+    public const SCALE_OSCILLATOR = 'oscillator';
+
+    // Which functions are bounded/oscillator-scaled (0-100) rather than
+    // price-scaled — the dashboard chart plots these on their own secondary
+    // panel instead of squashing them onto the price axis. CONSTANT/ADD/SUB/
+    // MUL/DIV don't have a fixed scale of their own; they inherit whatever a
+    // user built them to compare against, so they default to price (the
+    // common case) rather than guessing.
+    private const OSCILLATOR_FUNCTIONS = ['RSI'];
+
+    /**
+     * @param array<string, mixed> $formula
+     */
+    public static function scaleFor(array $formula): string
+    {
+        $fn = strtoupper((string) ($formula['fn'] ?? ''));
+        return in_array($fn, self::OSCILLATOR_FUNCTIONS, true) ? self::SCALE_OSCILLATOR : self::SCALE_PRICE;
+    }
+
     /**
      * @param array<string, mixed> $formula
      * @param YahooFinanceData[] $prices
