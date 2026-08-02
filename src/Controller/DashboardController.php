@@ -3,10 +3,12 @@
 namespace App\Controller;
 
 use App\Domain\Line;
+use App\Domain\Trigger;
 use App\Domain\User;
 use App\Line\FormulaEvaluator;
 use App\Repository\LineRepository;
 use App\Repository\TickerRepository;
+use App\Repository\TriggerRepository;
 use App\Service\TickerBacktestService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -32,6 +34,7 @@ class DashboardController
         private TickerRepository $tickerRepository,
         private LineRepository $lineRepository,
         private FormulaEvaluator $formulaEvaluator,
+        private TriggerRepository $triggerRepository,
     ) {}
 
     /**
@@ -61,10 +64,14 @@ class DashboardController
 
         $run = $this->backtestService->run($ticker, $strategy);
 
-        // Lines are per-user and hidden from guests entirely (same reasoning
-        // as the Lab: the guest account is a single shared row, so per-user
-        // saved state doesn't make sense there).
+        // Lines/Triggers are per-user and hidden from guests entirely (same
+        // reasoning as the Lab: the guest account is a single shared row, so
+        // per-user saved state doesn't make sense there).
         $userLines = $isGuest ? [] : $this->lineRepository->allForUser($user->getId());
+        $linesById = [];
+        foreach ($userLines as $line) {
+            $linesById[$line->getId()] = $line;
+        }
         $selectedLineIds = array_values(array_intersect(
             array_map('intval', array_filter((array) ($params['lines'] ?? []), 'is_numeric')),
             array_map(fn(Line $l) => $l->getId(), $userLines),
@@ -74,10 +81,6 @@ class DashboardController
         $chart['lines'] = [];
         if ($run['hasData'] && !empty($selectedLineIds)) {
             $prices = $this->backtestService->loadPrices($ticker);
-            $linesById = [];
-            foreach ($userLines as $line) {
-                $linesById[$line->getId()] = $line;
-            }
             foreach ($selectedLineIds as $id) {
                 $formula = $linesById[$id]->getFormula();
                 $chart['lines'][] = [
@@ -88,6 +91,18 @@ class DashboardController
                 ];
             }
         }
+
+        // Triggers, scoped to whichever ticker is charted right now — the
+        // sidebar next to the chart, not the full cross-ticker /triggers list.
+        $tickerTriggerRows = array_map(function (Trigger $trigger) use ($linesById) {
+            $condition = $trigger->getConditions()[0] ?? null;
+            return [
+                'trigger' => $trigger,
+                'lineAName' => $condition !== null ? (($linesById[$condition->getLineAId()] ?? null)?->getName() ?? '(deleted line)') : '?',
+                'lineBName' => $condition !== null ? (($linesById[$condition->getLineBId()] ?? null)?->getName() ?? '(deleted line)') : '?',
+                'operator' => $condition?->getOperator(),
+            ];
+        }, $isGuest ? [] : $this->triggerRepository->allForUserAndTicker($user->getId(), $ticker));
 
         $response->getBody()->write($this->twig->render('dashboard/index.html.twig', [
             'isAdmin' => $user instanceof User && $user->isAdmin(),
@@ -103,6 +118,7 @@ class DashboardController
             'summary' => $run['summary'],
             'userLines' => $userLines,
             'selectedLineIds' => $selectedLineIds,
+            'tickerTriggerRows' => $tickerTriggerRows,
         ]));
         return $response;
     }

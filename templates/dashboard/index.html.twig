@@ -3,8 +3,11 @@
 {% block title %}Dashboard — Backtest{% endblock %}
 
 {% block body %}
+<div class="dashboard-layout">
+<div class="dashboard-main">
+
 <div class="card">
-    <form method="get" action="/" class="picker-row">
+    <form method="get" action="/" id="dashboardForm" class="picker-row">
         <div class="form-group">
             <label for="ticker">Ticker</label>
             <select id="ticker" name="ticker" onchange="this.form.submit()">
@@ -21,17 +24,6 @@
                 {% endfor %}
             </select>
         </div>
-        {% if userLines is not empty %}
-            <div class="form-group">
-                <label>Lines</label>
-                {% for line in userLines %}
-                    <label style="font-weight:normal; display:inline-flex; align-items:center; gap:0.3rem; margin-right:1rem;">
-                        <input type="checkbox" name="lines[]" value="{{ line.id }}" onchange="this.form.submit()" {{ line.id in selectedLineIds ? 'checked' : '' }}>
-                        {{ line.name }}
-                    </label>
-                {% endfor %}
-            </div>
-        {% endif %}
     </form>
 </div>
 
@@ -116,6 +108,159 @@
         </table>
     {% endif %}
 </div>
+{% endif %}
+
+</div>{# /dashboard-main #}
+
+{% if not isGuest %}
+<div class="dashboard-sidebar">
+    <div class="card">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+            <h2 style="margin:0;">Lines</h2>
+            <button type="button" class="btn btn-secondary" id="openLineModal">+ New</button>
+        </div>
+        {% if userLines is empty %}
+            <p style="font-size:0.9rem; color:#5b6472; margin-top:0.75rem;">No lines yet.</p>
+        {% else %}
+            <div style="margin-top:0.75rem; display:flex; flex-direction:column; gap:0.5rem;">
+            {% for line in userLines %}
+                <label style="font-weight:normal; display:flex; align-items:center; gap:0.4rem; font-size:0.9rem;">
+                    <input type="checkbox" name="lines[]" value="{{ line.id }}" form="dashboardForm" onchange="document.getElementById('dashboardForm').submit()" {{ line.id in selectedLineIds ? 'checked' : '' }}>
+                    {{ line.name }}
+                </label>
+            {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+            <h2 style="margin:0;">Triggers</h2>
+            {% if userLines|length >= 2 %}
+                <button type="button" class="btn btn-secondary" id="openTriggerModal">+ New</button>
+            {% endif %}
+        </div>
+        {% if tickerTriggerRows is empty %}
+            <p style="font-size:0.9rem; color:#5b6472; margin-top:0.75rem;">No triggers for {{ selectedTicker }}.</p>
+        {% else %}
+            <div style="margin-top:0.75rem; display:flex; flex-direction:column; gap:0.75rem;">
+            {% for row in tickerTriggerRows %}
+                <div style="font-size:0.85rem; border:1px solid #edf0f2; border-radius:6px; padding:0.6rem 0.75rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem;">
+                        <strong>{{ row.trigger.name }}</strong>
+                        {% if row.trigger.active %}
+                            <span class="badge badge-on">Armed</span>
+                        {% else %}
+                            <span class="badge badge-off">Disarmed</span>
+                        {% endif %}
+                    </div>
+                    <div style="color:#5b6472; margin:0.3rem 0;">{{ row.lineAName }} is {{ row.operator == 'ABOVE' ? 'above' : 'below' }} {{ row.lineBName }}</div>
+                    <div style="display:flex; gap:0.5rem;">
+                        <form method="post" action="/triggers/{{ row.trigger.id }}/toggle">
+                            <input type="hidden" name="redirect_to" value="/">
+                            <button type="submit" class="btn btn-secondary" style="padding:0.3rem 0.6rem; font-size:0.8rem;">{{ row.trigger.active ? 'Disarm' : 'Arm' }}</button>
+                        </form>
+                        <form method="post" action="/triggers/{{ row.trigger.id }}/delete">
+                            <input type="hidden" name="redirect_to" value="/">
+                            <button type="submit" class="btn btn-secondary" style="padding:0.3rem 0.6rem; font-size:0.8rem;">Delete</button>
+                        </form>
+                    </div>
+                </div>
+            {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+</div>{# /dashboard-layout #}
+
+{% if not isGuest %}
+<div class="modal-overlay hidden" id="lineModal">
+    <div class="modal-panel">
+        <div class="modal-header">
+            <h2>Line Configuration</h2>
+            <button type="button" class="modal-close" id="closeLineModal" aria-label="Close">&times;</button>
+        </div>
+        <form method="post" action="/lines">
+            <input type="hidden" name="redirect_to" value="/">
+            <div class="form-group">
+                <label for="lineName">Name</label>
+                <input type="text" id="lineName" name="name" placeholder="e.g. 50-day SMA" required>
+            </div>
+
+            <div class="field-chain-label">Line is</div>
+            <div class="field-chain">
+                <select id="lineFn" name="fn">
+                    <option value="PRICE">Price</option>
+                    <option value="SMA" selected>SMA</option>
+                    <option value="EMA">EMA</option>
+                    <option value="RSI">RSI</option>
+                    <option value="CONSTANT">Constant</option>
+                </select>
+                <div class="form-group" id="linePeriodGroup" style="margin-bottom:0;">
+                    <label for="linePeriod">Period</label>
+                    <input type="number" id="linePeriod" name="period" min="1" value="50">
+                </div>
+                <div class="form-group" id="lineValueGroup" style="display:none; margin-bottom:0;">
+                    <label for="lineValue">Value</label>
+                    <input type="number" id="lineValue" name="value" step="any">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancelLineModal">Cancel</button>
+                <button type="submit" class="btn">Add line</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if userLines|length >= 2 %}
+<div class="modal-overlay hidden" id="triggerModal">
+    <div class="modal-panel">
+        <div class="modal-header">
+            <h2>Trigger Configuration</h2>
+            <button type="button" class="modal-close" id="closeTriggerModal" aria-label="Close">&times;</button>
+        </div>
+        <form method="post" action="/triggers">
+            <input type="hidden" name="redirect_to" value="/">
+            <input type="hidden" name="ticker" value="{{ selectedTicker }}">
+            <div class="form-group">
+                <label for="triggerName">Name</label>
+                <input type="text" id="triggerName" name="name" placeholder="e.g. Golden cross" required>
+            </div>
+            <div class="form-group">
+                <label>For ticker</label>
+                <input type="text" value="{{ selectedTicker }}" disabled>
+            </div>
+
+            <div class="field-chain-label">Trigger when</div>
+            <div class="field-chain">
+                <select name="line_a_id" aria-label="Line A">
+                    {% for line in userLines %}
+                        <option value="{{ line.id }}">{{ line.name }}</option>
+                    {% endfor %}
+                </select>
+                <select name="operator" aria-label="Condition">
+                    <option value="ABOVE">is above</option>
+                    <option value="BELOW">is below</option>
+                </select>
+                <select name="line_b_id" aria-label="Line B">
+                    {% for line in userLines %}
+                        <option value="{{ line.id }}" {{ loop.index == 2 ? 'selected' : '' }}>{{ line.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancelTriggerModal">Cancel</button>
+                <button type="submit" class="btn">Add trigger</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 {% endif %}
 
 <script id="chart-data" type="application/json">{{ chartDataJson|raw }}</script>
@@ -349,6 +494,38 @@
     function redraw() { draw(); drawOscillator(); }
     redraw();
     window.addEventListener('resize', redraw);
+})();
+</script>
+
+<script>
+(function () {
+    function wireModal(modalId, openId, closeId, cancelId) {
+        var modal = document.getElementById(modalId);
+        var openBtn = document.getElementById(openId);
+        if (!modal || !openBtn) return;
+
+        function open() { modal.classList.remove('hidden'); }
+        function close() { modal.classList.add('hidden'); }
+
+        openBtn.addEventListener('click', open);
+        var closeBtn = document.getElementById(closeId);
+        var cancelBtn = document.getElementById(cancelId);
+        if (closeBtn) closeBtn.addEventListener('click', close);
+        if (cancelBtn) cancelBtn.addEventListener('click', close);
+        modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    }
+
+    wireModal('lineModal', 'openLineModal', 'closeLineModal', 'cancelLineModal');
+    wireModal('triggerModal', 'openTriggerModal', 'closeTriggerModal', 'cancelTriggerModal');
+
+    var lineFn = document.getElementById('lineFn');
+    if (lineFn) {
+        lineFn.addEventListener('change', function () {
+            var fn = this.value;
+            document.getElementById('linePeriodGroup').style.display = (fn === 'PRICE' || fn === 'CONSTANT') ? 'none' : '';
+            document.getElementById('lineValueGroup').style.display = (fn === 'CONSTANT') ? '' : 'none';
+        });
+    }
 })();
 </script>
 {% endblock %}

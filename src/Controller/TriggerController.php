@@ -18,9 +18,11 @@ use Twig\Environment;
 /**
  * CRUD for a logged-in user's own Triggers, plus the historical "would have
  * fired" view (computed on demand via TriggerEvaluationService::
- * findTransitionDates(), never persisted — only the live daily-sync cron,
- * added in a later phase, writes to the alerts table). Guest-blocked at the
- * route level, same reasoning as Lines/Lab.
+ * findTransitionDates(), never persisted — only the live daily-sync cron
+ * writes to the alerts table). Guest-blocked at the route level, same
+ * reasoning as Lines/Lab. Reachable both from the standalone /triggers
+ * management page and from the dashboard sidebar (next to whichever chart
+ * is open, with the ticker locked to that chart).
  */
 class TriggerController
 {
@@ -93,27 +95,27 @@ class TriggerController
         $lineBId = (int) $get('line_b_id');
 
         if ($name === '') {
-            return $this->redirectWithError($response, 'Give the trigger a name.');
+            return $this->redirectWithError($request, $response, 'Give the trigger a name.');
         }
         if (!in_array($ticker, $this->tickerRepository->all(), true)) {
-            return $this->redirectWithError($response, 'Pick a valid ticker.');
+            return $this->redirectWithError($request, $response, 'Pick a valid ticker.');
         }
         if (!in_array($operator, [TriggerCondition::OPERATOR_ABOVE, TriggerCondition::OPERATOR_BELOW], true)) {
-            return $this->redirectWithError($response, 'Pick a valid condition.');
+            return $this->redirectWithError($request, $response, 'Pick a valid condition.');
         }
         if ($lineAId === $lineBId) {
-            return $this->redirectWithError($response, 'Line A and Line B must be different.');
+            return $this->redirectWithError($request, $response, 'Line A and Line B must be different.');
         }
 
         $lineA = $this->lineRepository->find($lineAId);
         $lineB = $this->lineRepository->find($lineBId);
         if ($lineA === null || $lineA->getUserId() !== $user->getId() || $lineB === null || $lineB->getUserId() !== $user->getId()) {
-            return $this->redirectWithError($response, 'Pick two of your own lines.');
+            return $this->redirectWithError($request, $response, 'Pick two of your own lines.');
         }
 
         $this->triggerRepository->create($user->getId(), $ticker, $name, $lineAId, $operator, $lineBId);
 
-        return $response->withHeader('Location', '/triggers?added=' . urlencode("Added \"{$name}\""))->withStatus(302);
+        return $this->redirectWithMessage($request, $response, 'added', "Added \"{$name}\"");
     }
 
     /**
@@ -124,12 +126,12 @@ class TriggerController
         $user = $this->requireUser($request);
         $trigger = $this->findOwned($user, (int) ($args['id'] ?? 0));
         if ($trigger === null) {
-            return $this->redirectWithError($response, 'Trigger not found.');
+            return $this->redirectWithError($request, $response, 'Trigger not found.');
         }
 
         $this->triggerRepository->setActive($trigger->getId(), !$trigger->isActive());
 
-        return $response->withHeader('Location', '/triggers')->withStatus(302);
+        return $response->withHeader('Location', $this->redirectBase($request))->withStatus(302);
     }
 
     /**
@@ -140,12 +142,12 @@ class TriggerController
         $user = $this->requireUser($request);
         $trigger = $this->findOwned($user, (int) ($args['id'] ?? 0));
         if ($trigger === null) {
-            return $this->redirectWithError($response, 'Trigger not found.');
+            return $this->redirectWithError($request, $response, 'Trigger not found.');
         }
 
         $this->triggerRepository->delete($trigger->getId());
 
-        return $response->withHeader('Location', '/triggers?added=' . urlencode("Deleted \"{$trigger->getName()}\""))->withStatus(302);
+        return $this->redirectWithMessage($request, $response, 'added', "Deleted \"{$trigger->getName()}\"");
     }
 
     private function findOwned(User $user, int $id): ?Trigger
@@ -163,8 +165,27 @@ class TriggerController
         return $user;
     }
 
-    private function redirectWithError(Response $response, string $message): Response
+    /**
+     * Honours an explicit redirect_to so a request made from the dashboard
+     * sidebar lands back on the dashboard rather than /triggers, whitelisted
+     * to known-safe local paths only (never an open redirect).
+     */
+    private function redirectBase(Request $request): string
     {
-        return $response->withHeader('Location', '/triggers?error=' . urlencode($message))->withStatus(302);
+        $body = $request->getParsedBody();
+        $redirectTo = is_array($body) && is_string($body['redirect_to'] ?? null) ? $body['redirect_to'] : '/triggers';
+        return in_array($redirectTo, ['/', '/triggers'], true) ? $redirectTo : '/triggers';
+    }
+
+    private function redirectWithMessage(Request $request, Response $response, string $key, string $message): Response
+    {
+        return $response
+            ->withHeader('Location', $this->redirectBase($request) . '?' . $key . '=' . urlencode($message))
+            ->withStatus(302);
+    }
+
+    private function redirectWithError(Request $request, Response $response, string $message): Response
+    {
+        return $this->redirectWithMessage($request, $response, 'error', $message);
     }
 }

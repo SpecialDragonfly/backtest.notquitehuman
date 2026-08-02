@@ -22,6 +22,17 @@ class TriggerRepository
     }
 
     /**
+     * @return Trigger[] One user's triggers for a single ticker — the
+     *     dashboard sidebar's list, scoped to whichever ticker is charted.
+     */
+    public function allForUserAndTicker(int $userId, string $ticker): array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM triggers WHERE user_id = ? AND ticker = ? ORDER BY id');
+        $stmt->execute([$userId, $ticker]);
+        return array_map(fn(array $row) => $this->hydrate($row), $stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /**
      * @return Trigger[] Every active trigger for a ticker, regardless of owner —
      *     used by the live cron path, which evaluates on behalf of all users.
      */

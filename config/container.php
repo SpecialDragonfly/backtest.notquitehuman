@@ -170,6 +170,7 @@ return [
         containerGet($c, TickerRepository::class),
         containerGet($c, LineRepository::class),
         containerGet($c, FormulaEvaluator::class),
+        containerGet($c, TriggerRepository::class),
     ),
     LabController::class => fn(ContainerInterface $c) => new LabController(
         containerGet($c, Environment::class),
