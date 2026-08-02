@@ -17,13 +17,13 @@ return function (App $app) {
     $app->post('/login', [AuthController::class, 'login']);
     $app->post('/logout',[AuthController::class, 'logout']);
 
-    // -- Dashboard / rebalance tool (auth required) --
-    $app->get('/',                 [DashboardController::class, 'index'])->add(TokenAuthMiddleware::class);
-    $app->post('/portfolio/apply', [DashboardController::class, 'apply'])->add(TokenAuthMiddleware::class);
+    // -- Dashboard: ticker/strategy chart explorer (auth required) --
+    $app->get('/', [DashboardController::class, 'index'])->add(TokenAuthMiddleware::class);
 
-    // -- Lab (auth required) --
-    $app->get('/lab',         [LabController::class, 'index'])->add(TokenAuthMiddleware::class);
-    $app->post('/lab/run',    [LabController::class, 'run'])->add(TokenAuthMiddleware::class);
-    $app->get('/lab/custom',  [LabController::class, 'customForm'])->add(TokenAuthMiddleware::class);
-    $app->post('/lab/custom', [LabController::class, 'customRun'])->add(TokenAuthMiddleware::class);
+    // -- Lab: strategy comparison + live rebalance tool (auth required) --
+    $app->get('/lab',              [LabController::class, 'index'])->add(TokenAuthMiddleware::class);
+    $app->post('/lab/run',         [LabController::class, 'run'])->add(TokenAuthMiddleware::class);
+    $app->get('/lab/custom',       [LabController::class, 'customForm'])->add(TokenAuthMiddleware::class);
+    $app->post('/lab/custom',      [LabController::class, 'customRun'])->add(TokenAuthMiddleware::class);
+    $app->post('/portfolio/apply', [LabController::class, 'apply'])->add(TokenAuthMiddleware::class);
 };

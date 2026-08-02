@@ -4,54 +4,205 @@
 
 {% block body %}
 <div class="card">
+    <form method="get" action="/" class="picker-row">
+        <div class="form-group">
+            <label for="ticker">Ticker</label>
+            <select id="ticker" name="ticker" onchange="this.form.submit()">
+                {% for t in tickers %}
+                    <option value="{{ t }}" {{ t == selectedTicker ? 'selected' : '' }}>{{ t }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="strategy">Strategy</label>
+            <select id="strategy" name="strategy" onchange="this.form.submit()">
+                {% for slug, label in strategies %}
+                    <option value="{{ slug }}" {{ slug == selectedStrategy ? 'selected' : '' }}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+</div>
+
+{% if not hasData %}
+<div class="card">
+    <p>Not enough synced history for {{ symbol }} yet — needs at least 40 daily bars.</p>
+</div>
+{% else %}
+<div class="card">
     <div class="stat-row">
         <div class="stat">
-            <div class="stat-label">As of</div>
-            <div class="stat-value">{{ asOfMonth }}</div>
+            <div class="stat-label">Compound return</div>
+            <div class="stat-value {{ summary.compoundReturnPercent >= 0 ? 'positive' : 'negative' }}">{{ summary.compoundReturnPercent }}%</div>
         </div>
         <div class="stat">
-            <div class="stat-label">Config</div>
-            <div class="stat-value">Top{{ topN }} / {{ lookbackMonths }}mo</div>
+            <div class="stat-label">Max drawdown</div>
+            <div class="stat-value negative">{{ summary.maxDrawdownPercent }}%</div>
         </div>
         <div class="stat">
-            <div class="stat-label">Market regime</div>
-            <div class="stat-value">
-                <span class="badge {{ regime == 'risk-on' ? 'badge-on' : 'badge-off' }}">{{ regime|upper }}</span>
-            </div>
+            <div class="stat-label">Trades</div>
+            <div class="stat-value">{{ summary.trades }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Win rate</div>
+            <div class="stat-value">{{ summary.winRate }}%</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Avg holding</div>
+            <div class="stat-value">{{ summary.avgHoldingDays }}d</div>
         </div>
     </div>
 
-    {% if regime == 'risk-off' %}
-        <p>Market is below its trend average — target allocation is 100% cash.</p>
-    {% endif %}
-
-    <p><strong>Target holdings:</strong> {{ targetHoldings|join(', ') ?: '(none — cash)' }}</p>
-    <p><strong>Current holdings:</strong> {{ currentHoldings|join(', ') ?: '(none on file)' }}</p>
+    <div class="chart-wrap">
+        <canvas id="priceChart"></canvas>
+        <div class="chart-tooltip" id="chartTooltip"></div>
+    </div>
+    <div class="chart-legend">
+        <span><span class="legend-line" style="background:#1c6dd0"></span> {{ symbol }} close</span>
+        <span><span class="legend-dot" style="background:#1a8754"></span> Buy</span>
+        <span><span class="legend-dot" style="background:#c0362c"></span> Sell</span>
+    </div>
 </div>
 
 <div class="card">
-    <h2>Rebalance instructions</h2>
-    {% if toBuy is empty and toSell is empty %}
-        <p>No changes required — holdings already match the target.</p>
+    <h2>Trade log</h2>
+    {% if trades is empty %}
+        <p>No completed trades for this strategy over the synced history.</p>
     {% else %}
         <table>
-            <thead><tr><th>Action</th><th>Ticker</th></tr></thead>
+            <thead>
+                <tr>
+                    <th>Buy date</th>
+                    <th class="num">Buy price</th>
+                    <th>Sell date</th>
+                    <th class="num">Sell price</th>
+                    <th class="num">P/L %</th>
+                    <th class="num">Days held</th>
+                </tr>
+            </thead>
             <tbody>
-            {% for t in toBuy %}
-                <tr><td><span class="badge badge-buy">BUY</span></td><td>{{ t }}</td></tr>
-            {% endfor %}
-            {% for t in toSell %}
-                <tr><td><span class="badge badge-sell">SELL</span></td><td>{{ t }}</td></tr>
-            {% endfor %}
-            {% for t in toHold %}
-                <tr><td><span class="badge badge-hold">HOLD</span></td><td>{{ t }}</td></tr>
+            {% for trade in trades %}
+                <tr>
+                    <td>{{ trade.buyTimestamp|date('Y-m-d') }}</td>
+                    <td class="num">{{ trade.buyPrice|number_format(2) }}</td>
+                    <td>{{ trade.sellTimestamp|date('Y-m-d') }}</td>
+                    <td class="num">{{ trade.sellPrice|number_format(2) }}</td>
+                    <td class="num {{ trade.profitPercent >= 0 ? 'positive' : 'negative' }}">{{ trade.profitPercent|number_format(2) }}</td>
+                    <td class="num">{{ trade.durationDays }}</td>
+                </tr>
             {% endfor %}
             </tbody>
         </table>
     {% endif %}
-
-    <form method="post" action="/portfolio/apply" style="margin-top:1.5rem">
-        <button type="submit" class="btn">Apply target as current holdings</button>
-    </form>
 </div>
+{% endif %}
+
+<script id="chart-data" type="application/json">{{ chartDataJson|raw }}</script>
+{% endblock %}
+
+{% block javascripts %}
+<script>
+(function () {
+    var dataEl = document.getElementById('chart-data');
+    if (!dataEl) return;
+    var data = JSON.parse(dataEl.textContent);
+    var prices = data.prices;
+    if (!prices || prices.length === 0) return;
+
+    var canvas = document.getElementById('priceChart');
+    var tooltip = document.getElementById('chartTooltip');
+    var ctx = canvas.getContext('2d');
+
+    var padding = { top: 16, right: 16, bottom: 28, left: 56 };
+    var dpr = window.devicePixelRatio || 1;
+
+    var minT = prices[0].t, maxT = prices[prices.length - 1].t;
+    var minC = Infinity, maxC = -Infinity;
+    prices.forEach(function (p) {
+        if (p.c < minC) minC = p.c;
+        if (p.c > maxC) maxC = p.c;
+    });
+    var cPad = (maxC - minC) * 0.06;
+    minC -= cPad; maxC += cPad;
+
+    function xFor(t, w) {
+        return padding.left + (t - minT) / (maxT - minT) * (w - padding.left - padding.right);
+    }
+    function yFor(c, h) {
+        return padding.top + (1 - (c - minC) / (maxC - minC)) * (h - padding.top - padding.bottom);
+    }
+
+    function draw() {
+        var w = canvas.clientWidth, h = canvas.clientHeight;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+
+        // Gridlines + price labels
+        ctx.strokeStyle = '#edf0f2';
+        ctx.fillStyle = '#5b6472';
+        ctx.font = '11px Inter, sans-serif';
+        ctx.lineWidth = 1;
+        var steps = 4;
+        for (var i = 0; i <= steps; i++) {
+            var c = minC + (maxC - minC) * (i / steps);
+            var y = yFor(c, h);
+            ctx.beginPath();
+            ctx.moveTo(padding.left, y);
+            ctx.lineTo(w - padding.right, y);
+            ctx.stroke();
+            ctx.fillText(c.toFixed(0), 6, y + 3);
+        }
+
+        // Price line
+        ctx.strokeStyle = '#1c6dd0';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        prices.forEach(function (p, i) {
+            var x = xFor(p.t, w), y = yFor(p.c, h);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Signal markers
+        (data.signals || []).forEach(function (s) {
+            var x = xFor(s.t, w), y = yFor(s.p, h);
+            ctx.beginPath();
+            ctx.fillStyle = s.type === 'BUY' ? '#1a8754' : '#c0362c';
+            ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    }
+
+    function nearestPoint(x, w) {
+        var t = minT + (x - padding.left) / (w - padding.left - padding.right) * (maxT - minT);
+        var lo = 0, hi = prices.length - 1;
+        while (lo < hi) {
+            var mid = (lo + hi) >> 1;
+            if (prices[mid].t < t) lo = mid + 1; else hi = mid;
+        }
+        return prices[lo];
+    }
+
+    canvas.addEventListener('mousemove', function (e) {
+        var rect = canvas.getBoundingClientRect();
+        var x = e.clientX - rect.left, w = canvas.clientWidth, h = canvas.clientHeight;
+        var p = nearestPoint(x, w);
+        if (!p) return;
+        var px = xFor(p.t, w), py = yFor(p.c, h);
+        tooltip.style.left = px + 'px';
+        tooltip.style.top = (py - 10) + 'px';
+        tooltip.style.opacity = '1';
+        var d = new Date(p.t * 1000);
+        tooltip.textContent = d.toISOString().slice(0, 10) + '  ' + p.c.toFixed(2);
+    });
+    canvas.addEventListener('mouseleave', function () {
+        tooltip.style.opacity = '0';
+    });
+
+    draw();
+    window.addEventListener('resize', draw);
+})();
+</script>
 {% endblock %}

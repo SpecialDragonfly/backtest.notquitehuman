@@ -13,6 +13,7 @@ use App\Service\AuthTokenService;
 use App\Service\MomentumRotationService;
 use App\Service\PriceSyncService;
 use App\Service\StrategyComparisonService;
+use App\Service\TickerBacktestService;
 use Monolog\Handler\StreamHandler;
 use Monolog\Level;
 use Monolog\Logger;
@@ -107,6 +108,9 @@ return [
         containerGet($c, YahooFinanceClient::class),
         containerGet($c, PriceHistoryRepository::class),
     ),
+    TickerBacktestService::class => fn(ContainerInterface $c) => new TickerBacktestService(
+        containerGet($c, PriceHistoryRepository::class),
+    ),
     AuthTokenService::class => fn(ContainerInterface $c) => new AuthTokenService(containerGet($c, PDO::class)),
     MomentumRotationService::class => fn(ContainerInterface $c) => new MomentumRotationService(
         containerGet($c, PriceHistoryRepository::class),
@@ -129,13 +133,13 @@ return [
     ),
     DashboardController::class => fn(ContainerInterface $c) => new DashboardController(
         containerGet($c, Environment::class),
-        containerGet($c, MomentumRotationService::class),
-        containerGet($c, MomentumHoldingsRepository::class),
+        containerGet($c, TickerBacktestService::class),
     ),
     LabController::class => fn(ContainerInterface $c) => new LabController(
         containerGet($c, Environment::class),
         containerGet($c, MomentumRotationService::class),
         containerGet($c, StrategyComparisonService::class),
         containerGet($c, BacktestRunRepository::class),
+        containerGet($c, MomentumHoldingsRepository::class),
     ),
 ];

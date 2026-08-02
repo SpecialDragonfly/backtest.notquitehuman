@@ -4,6 +4,56 @@
 
 {% block body %}
 <div class="card">
+    <h1>Live rebalance</h1>
+    <div class="stat-row">
+        <div class="stat">
+            <div class="stat-label">As of</div>
+            <div class="stat-value">{{ asOfMonth }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Config</div>
+            <div class="stat-value">Top{{ topN }} / {{ lookbackMonths }}mo</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Market regime</div>
+            <div class="stat-value">
+                <span class="badge {{ regime == 'risk-on' ? 'badge-on' : 'badge-off' }}">{{ regime|upper }}</span>
+            </div>
+        </div>
+    </div>
+
+    {% if regime == 'risk-off' %}
+        <p>Market is below its trend average — target allocation is 100% cash.</p>
+    {% endif %}
+
+    <p><strong>Target holdings:</strong> {{ targetHoldings|join(', ') ?: '(none — cash)' }}</p>
+    <p><strong>Current holdings:</strong> {{ currentHoldings|join(', ') ?: '(none on file)' }}</p>
+
+    {% if toBuy is empty and toSell is empty %}
+        <p>No changes required — holdings already match the target.</p>
+    {% else %}
+        <table>
+            <thead><tr><th>Action</th><th>Ticker</th></tr></thead>
+            <tbody>
+            {% for t in toBuy %}
+                <tr><td><span class="badge badge-buy">BUY</span></td><td>{{ t }}</td></tr>
+            {% endfor %}
+            {% for t in toSell %}
+                <tr><td><span class="badge badge-sell">SELL</span></td><td>{{ t }}</td></tr>
+            {% endfor %}
+            {% for t in toHold %}
+                <tr><td><span class="badge badge-hold">HOLD</span></td><td>{{ t }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <form method="post" action="/portfolio/apply" style="margin-top:1.5rem">
+        <button type="submit" class="btn">Apply target as current holdings</button>
+    </form>
+</div>
+
+<div class="card">
     <h1>Strategy comparison</h1>
     <p>Buy &amp; Hold vs. the MACD/RSI/ADX variants, across the full blue-chip/index universe, back to 2008. Recomputed on demand only — this involves ~66 live price fetches.</p>
     <form method="post" action="/lab/run">
