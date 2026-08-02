@@ -6,6 +6,7 @@ use App\Controller\AuthController;
 use App\Controller\DashboardController;
 use App\Controller\LabController;
 use App\Middleware\AdminOnlyMiddleware;
+use App\Middleware\GuestBlockMiddleware;
 use App\Middleware\TokenAuthMiddleware;
 use App\Repository\BacktestRunRepository;
 use App\Repository\MomentumHoldingsRepository;
@@ -132,6 +133,7 @@ return [
         containerGet($c, UserRepository::class),
     ),
     AdminOnlyMiddleware::class => fn() => new AdminOnlyMiddleware(),
+    GuestBlockMiddleware::class => fn() => new GuestBlockMiddleware(),
 
     // -- Controllers --
     AuthController::class => fn(ContainerInterface $c) => new AuthController(
