@@ -9,15 +9,16 @@
 #   cd ~/Projects/other_docker/backtest_notquitehuman_data   # adjust to wherever you checked it out
 #   bin/deploy.sh
 #
-# Assumes a container named backtest_notquitehuman already exists on the
-# server (set up separately, once) — adjust CONTAINER/CONTAINER_APP_PATH
-# below if you named things differently.
+# Assumes docker-compose.yml has already been brought up on the server
+# (set up separately, once) — the php container name below must match
+# docker-compose.yml's container_name, and the app path must match its
+# working_dir (both currently backtest_nqh_php / /var/www).
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONTAINER=backtest_notquitehuman
-CONTAINER_APP_PATH=/var/www/backtest_notquitehuman
+CONTAINER=backtest_nqh_php
+CONTAINER_APP_PATH=/var/www
 
 cd "$REPO_ROOT"
 
