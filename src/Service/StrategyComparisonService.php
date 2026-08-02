@@ -7,6 +7,7 @@ use App\Backtest\Backtester;
 use App\Backtest\MACDADXPoint;
 use App\Backtest\MACDCalculator;
 use App\Backtest\MACDRSIPoint;
+use App\Backtest\PriceAggregator;
 use App\Backtest\PriceRSIPoint;
 use App\Backtest\RSICalculator;
 use App\Backtest\Strategies\LongMACDCrossoverStrategy;
@@ -17,15 +18,16 @@ use App\Backtest\Strategies\MACDZeroLineCrossoverStrategy;
 use App\Backtest\Strategies\MeanReversionRSIStrategy;
 use App\Backtest\Strategies\StrategyInterface;
 use App\Backtest\TickerUniverse;
-use App\Backtest\YahooFinanceCollector;
 use App\Backtest\YahooFinanceData;
+use App\Repository\PriceHistoryRepository;
 
 /**
  * Web port of the CLI prototype's compare_timeframes.php: Buy & Hold vs. the
  * MACD/RSI/ADX strategy variants, across the full blue-chip/index universe,
- * Daily and Weekly. Expensive (~66 live price fetches on a cold cache) —
- * callers should run this on demand, not on every page view, and cache the
- * result (see BacktestRunRepository).
+ * Daily and Weekly. One daily fetch per ticker from price_history — the
+ * Weekly view is derived from those same daily bars via PriceAggregator
+ * rather than a second Yahoo interval. Still run on demand, not on every
+ * page view, and cache the result (see BacktestRunRepository).
  */
 class StrategyComparisonService
 {
@@ -33,14 +35,12 @@ class StrategyComparisonService
     private const SELL_COST_PERCENT = 0.1;
     private const START = '2008-01-01';
 
-    private YahooFinanceCollector $collector;
     private MACDCalculator $macdCalc;
     private RSICalculator $rsiCalc;
     private ADXCalculator $adxCalc;
 
-    public function __construct(string $cacheDir)
+    public function __construct(private PriceHistoryRepository $priceHistoryRepository)
     {
-        $this->collector = new YahooFinanceCollector($cacheDir);
         $this->macdCalc = new MACDCalculator();
         $this->rsiCalc = new RSICalculator();
         $this->adxCalc = new ADXCalculator();
@@ -61,15 +61,22 @@ class StrategyComparisonService
             'RSI mean reversion' => new MeanReversionRSIStrategy(),
         ];
 
-        $intervals = ['1d' => 'Daily', '1wk' => 'Weekly'];
         $end = date('Y-m-d');
-
         $rows = [];
 
         foreach (TickerUniverse::blueChipsAndIndexTrackers() as $ticker) {
             $symbol = TickerUniverse::toYahooSymbol($ticker);
-            foreach ($intervals as $interval => $intervalLabel) {
-                $prices = $this->collector->fetch($symbol, self::START, $end, $interval);
+            $dailyPrices = $this->priceHistoryRepository->getDailyCloses($symbol, self::START, $end);
+            if (count($dailyPrices) < 40) {
+                continue;
+            }
+
+            $timeframes = [
+                'Daily' => $dailyPrices,
+                'Weekly' => PriceAggregator::toWeekly($dailyPrices),
+            ];
+
+            foreach ($timeframes as $intervalLabel => $prices) {
                 if (count($prices) < 40) {
                     continue;
                 }

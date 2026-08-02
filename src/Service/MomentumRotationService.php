@@ -5,13 +5,14 @@ namespace App\Service;
 use App\Backtest\MomentumRotationBacktester;
 use App\Backtest\MomentumRotationResult;
 use App\Backtest\TickerUniverse;
-use App\Backtest\YahooFinanceCollector;
+use App\Repository\PriceHistoryRepository;
 
 /**
  * Web-facing wrapper around the ported momentum-rotation engine
  * (App\Backtest\MomentumRotationBacktester). Same UK cost model and regime
  * settings validated in the CLI prototype's momentum_rotation.php /
- * rebalance.php.
+ * rebalance.php. Prices come from price_history, kept up to date by
+ * PriceSyncService — this class only ever reads.
  */
 class MomentumRotationService
 {
@@ -23,12 +24,7 @@ class MomentumRotationService
     // Full validated backtest window (includes the 2008 and 2020 crashes).
     private const LONG_HISTORY_START = '2008-01-01';
 
-    private YahooFinanceCollector $collector;
-
-    public function __construct(string $cacheDir)
-    {
-        $this->collector = new YahooFinanceCollector($cacheDir);
-    }
+    public function __construct(private PriceHistoryRepository $priceHistoryRepository) {}
 
     /**
      * This month's target holdings — only fetches enough trailing history to
@@ -89,14 +85,16 @@ class MomentumRotationService
         $pricesByTicker = [];
         foreach (TickerUniverse::blueChipsAndIndexTrackers() as $ticker) {
             $symbol = TickerUniverse::toYahooSymbol($ticker);
-            $prices = $this->collector->fetch($symbol, $start, $end, '1d');
+            $prices = $this->priceHistoryRepository->getDailyCloses($symbol, $start, $end);
             if (count($prices) < 60) {
                 continue; // not enough history to be a useful momentum candidate
             }
             $pricesByTicker[$ticker] = $prices;
         }
 
-        $regimePrices = $regimeOn ? $this->collector->fetch(self::REGIME_INDEX_SYMBOL, $start, $end, '1d') : null;
+        $regimePrices = $regimeOn
+            ? $this->priceHistoryRepository->getDailyCloses(self::REGIME_INDEX_SYMBOL, $start, $end)
+            : null;
 
         return [$pricesByTicker, $regimePrices];
     }

@@ -6,6 +6,7 @@ use App\Controller\LabController;
 use App\Middleware\TokenAuthMiddleware;
 use App\Repository\BacktestRunRepository;
 use App\Repository\MomentumHoldingsRepository;
+use App\Repository\PriceHistoryRepository;
 use App\Repository\UserRepository;
 use App\Service\AuthTokenService;
 use App\Service\MomentumRotationService;
@@ -83,14 +84,15 @@ return [
     UserRepository::class             => fn(ContainerInterface $c) => new UserRepository(containerGet($c, PDO::class)),
     MomentumHoldingsRepository::class => fn(ContainerInterface $c) => new MomentumHoldingsRepository(containerGet($c, PDO::class)),
     BacktestRunRepository::class      => fn(ContainerInterface $c) => new BacktestRunRepository(containerGet($c, PDO::class)),
+    PriceHistoryRepository::class     => fn(ContainerInterface $c) => new PriceHistoryRepository(containerGet($c, PDO::class)),
 
     // -- Services --
     AuthTokenService::class => fn(ContainerInterface $c) => new AuthTokenService(containerGet($c, PDO::class)),
     MomentumRotationService::class => fn(ContainerInterface $c) => new MomentumRotationService(
-        dirname(__DIR__) . '/var/price-cache/',
+        containerGet($c, PriceHistoryRepository::class),
     ),
     StrategyComparisonService::class => fn(ContainerInterface $c) => new StrategyComparisonService(
-        dirname(__DIR__) . '/var/price-cache/',
+        containerGet($c, PriceHistoryRepository::class),
     ),
 
     // -- Middleware --
