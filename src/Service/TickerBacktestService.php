@@ -162,7 +162,10 @@ class TickerBacktestService
     {
         $rsiData = $this->rsiCalc->calculate($prices);
         return array_map(
-            fn($p, $r) => new PriceRSIPoint($p->timestamp, $p->close, $r->rsi),
+            // adjClose, not close — matches RSICalculator (which computes RSI
+            // off adjClose) and the chart's price line, so signal dots land
+            // on the line instead of at the unadjusted historical price.
+            fn($p, $r) => new PriceRSIPoint($p->timestamp, $p->adjClose, $r->rsi),
             $prices,
             $rsiData,
         );
