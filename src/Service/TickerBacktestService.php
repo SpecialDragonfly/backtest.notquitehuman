@@ -94,7 +94,12 @@ class TickerBacktestService
             'symbol' => $symbol,
             'hasData' => true,
             'chart' => [
-                'prices' => array_map(fn(YahooFinanceData $p) => ['t' => $p->timestamp, 'c' => $p->close], $prices),
+                // Plotted against adjClose, not raw close — the strategies
+                // above (and their signal prices) are all computed from
+                // adjClose, so the line and the buy/sell dots need to share
+                // that same series or the dots drift off the line wherever
+                // dividends/splits make adjClose diverge from close.
+                'prices' => array_map(fn(YahooFinanceData $p) => ['t' => $p->timestamp, 'c' => $p->adjClose], $prices),
                 'signals' => array_map(fn($s) => ['t' => $s->timestamp, 'type' => $s->type, 'p' => $s->price], $signals),
             ],
             'trades' => array_reverse($result->trades),
