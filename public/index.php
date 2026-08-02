@@ -1,26 +1,10 @@
 <?php
 
-use DI\ContainerBuilder;
 use Slim\Factory\AppFactory;
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
-$dotenv = Dotenv\Dotenv::createImmutable(dirname(__DIR__));
-$dotenv->safeLoad();
-
-$definitions = require dirname(__DIR__) . '/config/container.php';
-if (!is_array($definitions) && !$definitions instanceof \DI\Definition\Source\DefinitionSource) {
-    throw new \RuntimeException('config/container.php must return an array or DefinitionSource.');
-}
-
-$builder = new ContainerBuilder();
-$builder->addDefinitions($definitions);
-try {
-    $container = $builder->build();
-} catch (Exception $e) {
-    error_log(print_r($e, true));
-    throw $e;
-}
+$container = require dirname(__DIR__) . '/config/bootstrap.php';
 
 AppFactory::setContainer($container);
 $app = AppFactory::create();

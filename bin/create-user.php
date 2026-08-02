@@ -4,33 +4,14 @@
 // One-off CLI to create the (single) login user. Run this once after
 // migrating: php bin/create-user.php
 
+use App\Repository\UserRepository;
+use Psr\Log\LoggerInterface;
+
 require_once dirname(__DIR__) . '/vendor/autoload.php';
+$container = require dirname(__DIR__) . '/config/bootstrap.php';
 
-$dotenv = Dotenv\Dotenv::createImmutable(dirname(__DIR__));
-$dotenv->safeLoad();
-
-function env(string $key, string $default): string
-{
-    $envValue = $_ENV[$key] ?? null;
-    if (is_string($envValue)) {
-        return $envValue;
-    }
-    $getenvValue = getenv($key);
-    return $getenvValue !== false && $getenvValue !== '' ? $getenvValue : $default;
-}
-
-if (env('DB_CONNECTION', 'sqlite') === 'mysql') {
-    $dsn = sprintf(
-        'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
-        env('DB_HOST', '127.0.0.1'),
-        env('DB_PORT', '3306'),
-        env('DB_NAME', 'notquitehuman_backtest'),
-    );
-    $pdo = new PDO($dsn, env('DB_USER', ''), env('DB_PASS', ''));
-} else {
-    $pdo = new PDO('sqlite:' . dirname(__DIR__) . '/var/data.db');
-}
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$users = containerGet($container, UserRepository::class);
+$logger = containerGet($container, LoggerInterface::class);
 
 fwrite(STDOUT, "Username: ");
 $username = trim((string) fgets(STDIN));
@@ -46,14 +27,12 @@ if ($username === '' || $password === '') {
     exit(1);
 }
 
-$stmt = $pdo->prepare('SELECT id FROM users WHERE username = ?');
-$stmt->execute([$username]);
-if ($stmt->fetch() !== false) {
+if ($users->findByUsername($username) !== null) {
     fwrite(STDERR, "A user named \"{$username}\" already exists.\n");
     exit(1);
 }
 
-$pdo->prepare('INSERT INTO users (username, password, created) VALUES (?, ?, ?)')
-    ->execute([$username, password_hash($password, PASSWORD_DEFAULT), date('Y-m-d H:i:s')]);
+$users->create($username, password_hash($password, PASSWORD_DEFAULT));
+$logger->info("Created user \"{$username}\".");
 
 fwrite(STDOUT, "Created user \"{$username}\".\n");

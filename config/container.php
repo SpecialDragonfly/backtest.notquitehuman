@@ -1,5 +1,6 @@
 <?php
 
+use App\Backtest\YahooFinanceClient;
 use App\Controller\AuthController;
 use App\Controller\DashboardController;
 use App\Controller\LabController;
@@ -10,8 +11,13 @@ use App\Repository\PriceHistoryRepository;
 use App\Repository\UserRepository;
 use App\Service\AuthTokenService;
 use App\Service\MomentumRotationService;
+use App\Service\PriceSyncService;
 use App\Service\StrategyComparisonService;
+use Monolog\Handler\StreamHandler;
+use Monolog\Level;
+use Monolog\Logger;
 use Psr\Container\ContainerInterface;
+use Psr\Log\LoggerInterface;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 
@@ -37,6 +43,15 @@ function containerGet(ContainerInterface $c, string $class): object
 }
 
 return [
+    // -- Logging --
+    // Shared by web requests and CLI scripts (bin/*.php) alike, so both go
+    // through the same service instead of ad hoc echo/error_log calls.
+    LoggerInterface::class => function () {
+        $logger = new Logger('backtest');
+        $logger->pushHandler(new StreamHandler(dirname(__DIR__) . '/var/log/app.log', Level::Info));
+        return $logger;
+    },
+
     // -- Twig --
     Environment::class => function () {
         $loader = new FilesystemLoader(dirname(__DIR__) . '/templates');
@@ -87,6 +102,11 @@ return [
     PriceHistoryRepository::class     => fn(ContainerInterface $c) => new PriceHistoryRepository(containerGet($c, PDO::class)),
 
     // -- Services --
+    YahooFinanceClient::class => fn() => new YahooFinanceClient(),
+    PriceSyncService::class => fn(ContainerInterface $c) => new PriceSyncService(
+        containerGet($c, YahooFinanceClient::class),
+        containerGet($c, PriceHistoryRepository::class),
+    ),
     AuthTokenService::class => fn(ContainerInterface $c) => new AuthTokenService(containerGet($c, PDO::class)),
     MomentumRotationService::class => fn(ContainerInterface $c) => new MomentumRotationService(
         containerGet($c, PriceHistoryRepository::class),

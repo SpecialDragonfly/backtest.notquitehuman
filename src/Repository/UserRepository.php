@@ -27,6 +27,12 @@ class UserRepository
         return is_array($row) ? $this->hydrate($row) : null;
     }
 
+    public function create(string $username, string $hashedPassword): void
+    {
+        $this->db->prepare('INSERT INTO users (username, password, created) VALUES (?, ?, ?)')
+            ->execute([$username, $hashedPassword, date('Y-m-d H:i:s')]);
+    }
+
     /**
      * @param array<array-key, mixed> $row
      */

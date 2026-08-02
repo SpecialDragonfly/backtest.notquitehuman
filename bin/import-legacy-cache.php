@@ -14,38 +14,16 @@ use App\Backtest\TickerUniverse;
 use App\Backtest\YahooFinanceClient;
 use App\Backtest\YahooFinanceData;
 use App\Repository\PriceHistoryRepository;
+use Psr\Log\LoggerInterface;
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
+$container = require dirname(__DIR__) . '/config/bootstrap.php';
 
-$dotenv = Dotenv\Dotenv::createImmutable(dirname(__DIR__));
-$dotenv->safeLoad();
-
-function env(string $key, string $default): string
-{
-    $envValue = $_ENV[$key] ?? null;
-    if (is_string($envValue)) {
-        return $envValue;
-    }
-    $getenvValue = getenv($key);
-    return $getenvValue !== false && $getenvValue !== '' ? $getenvValue : $default;
-}
-
-if (env('DB_CONNECTION', 'sqlite') === 'mysql') {
-    $dsn = sprintf(
-        'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
-        env('DB_HOST', '127.0.0.1'),
-        env('DB_PORT', '3306'),
-        env('DB_NAME', 'notquitehuman_backtest'),
-    );
-    $pdo = new PDO($dsn, env('DB_USER', ''), env('DB_PASS', ''));
-} else {
-    $pdo = new PDO('sqlite:' . dirname(__DIR__) . '/var/data.db');
-}
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$client = containerGet($container, YahooFinanceClient::class);
+$repository = containerGet($container, PriceHistoryRepository::class);
+$logger = containerGet($container, LoggerInterface::class);
 
 $cacheDir = dirname(__DIR__) . '/var/price-cache';
-$client = new YahooFinanceClient();
-$repository = new PriceHistoryRepository($pdo);
 
 $symbols = array_map(
     fn(string $ticker) => TickerUniverse::toYahooSymbol($ticker),
@@ -88,7 +66,11 @@ foreach ($symbols as $symbol) {
     $repository->upsertDaily($symbol, $bars);
     $totalImported += count($bars);
 
-    fwrite(STDOUT, "  {$symbol}: imported " . count($bars) . " day(s) from " . count($files) . " cache file(s)\n");
+    $message = "{$symbol}: imported " . count($bars) . " day(s) from " . count($files) . " cache file(s)";
+    $logger->info($message);
+    fwrite(STDOUT, "  {$message}\n");
 }
 
-fwrite(STDOUT, "Done. {$totalImported} day(s) imported across " . count($symbols) . " symbols.\n");
+$summary = "Done. {$totalImported} day(s) imported across " . count($symbols) . " symbols.";
+$logger->info($summary);
+fwrite(STDOUT, "{$summary}\n");
