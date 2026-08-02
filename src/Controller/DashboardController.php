@@ -2,7 +2,6 @@
 
 namespace App\Controller;
 
-use App\Domain\Line;
 use App\Domain\Trigger;
 use App\Domain\User;
 use App\Line\FormulaEvaluator;
@@ -72,20 +71,20 @@ class DashboardController
         foreach ($userLines as $line) {
             $linesById[$line->getId()] = $line;
         }
-        $selectedLineIds = array_values(array_intersect(
-            array_map('intval', array_filter((array) ($params['lines'] ?? []), 'is_numeric')),
-            array_map(fn(Line $l) => $l->getId(), $userLines),
-        ));
 
+        // Every owned Line is evaluated up front (not just ones already
+        // plotted somewhere) — the sidebar's drag targets are chart panels
+        // built entirely client-side, so any line needs to be draggable onto
+        // any panel without a round-trip to fetch its data on drop.
         $chart = $run['chart'];
         $chart['lines'] = [];
-        if ($run['hasData'] && !empty($selectedLineIds)) {
+        if ($run['hasData'] && !empty($userLines)) {
             $prices = $this->backtestService->loadPrices($ticker);
-            foreach ($selectedLineIds as $id) {
-                $formula = $linesById[$id]->getFormula();
+            foreach ($userLines as $line) {
+                $formula = $line->getFormula();
                 $chart['lines'][] = [
-                    'id' => $id,
-                    'name' => $linesById[$id]->getName(),
+                    'id' => $line->getId(),
+                    'name' => $line->getName(),
                     'scale' => FormulaEvaluator::scaleFor($formula),
                     'points' => $this->formulaEvaluator->evaluate($formula, $prices),
                 ];
@@ -104,6 +103,14 @@ class DashboardController
             ];
         }, $isGuest ? [] : $this->triggerRepository->allForUserAndTicker($user->getId(), $ticker));
 
+        // Chart-panel layout (which lines sit on which panel, and how many
+        // extra blank panels exist) is client-side/URL-driven state, not
+        // persisted server-side — passed straight through for the page's JS
+        // to restore on load; it validates line ids itself against the
+        // chart.lines payload above, so a stale/tampered value just gets
+        // dropped rather than trusted.
+        $layout = (string) ($params['layout'] ?? '');
+
         $response->getBody()->write($this->twig->render('dashboard/index.html.twig', [
             'isAdmin' => $user instanceof User && $user->isAdmin(),
             'isGuest' => $isGuest,
@@ -117,7 +124,7 @@ class DashboardController
             'trades' => $run['trades'],
             'summary' => $run['summary'],
             'userLines' => $userLines,
-            'selectedLineIds' => $selectedLineIds,
+            'layout' => $layout,
             'tickerTriggerRows' => $tickerTriggerRows,
         ]));
         return $response;

@@ -8,6 +8,7 @@
 
 <div class="card">
     <form method="get" action="/" id="dashboardForm" class="picker-row">
+        <input type="hidden" name="layout" id="layoutInput" value="{{ layout }}">
         <div class="form-group">
             <label for="ticker">Ticker</label>
             <select id="ticker" name="ticker" onchange="this.form.submit()">
@@ -77,6 +78,13 @@
     <div class="chart-legend" id="oscillatorLegend"></div>
 </div>
 
+{% if not isGuest %}
+<div id="extraPanels"></div>
+<div class="card" style="text-align:center;">
+    <button type="button" class="btn btn-secondary" id="addChartBtn">+ Add chart</button>
+</div>
+{% endif %}
+
 <div class="card">
     <h2>Trade log</h2>
     {% if trades is empty %}
@@ -122,12 +130,12 @@
         {% if userLines is empty %}
             <p style="font-size:0.9rem; color:#5b6472; margin-top:0.75rem;">No lines yet.</p>
         {% else %}
-            <div style="margin-top:0.75rem; display:flex; flex-direction:column; gap:0.5rem;">
+            <p style="font-size:0.8rem; color:#5b6472; margin:0.5rem 0 0;">Drag onto any chart to plot it there.</p>
+            <div style="margin-top:0.5rem; display:flex; flex-direction:column; gap:0.5rem;">
             {% for line in userLines %}
-                <label style="font-weight:normal; display:flex; align-items:center; gap:0.4rem; font-size:0.9rem;">
-                    <input type="checkbox" name="lines[]" value="{{ line.id }}" form="dashboardForm" onchange="document.getElementById('dashboardForm').submit()" {{ line.id in selectedLineIds ? 'checked' : '' }}>
-                    {{ line.name }}
-                </label>
+                <div class="line-chip" draggable="true" data-line-id="{{ line.id }}">
+                    <span class="drag-handle">⠿</span> {{ line.name }}
+                </div>
             {% endfor %}
             </div>
         {% endif %}
@@ -275,10 +283,6 @@
     var prices = data.prices;
     if (!prices || prices.length === 0) return;
 
-    var canvas = document.getElementById('priceChart');
-    var tooltip = document.getElementById('chartTooltip');
-    var ctx = canvas.getContext('2d');
-
     var padding = { top: 16, right: 16, bottom: 28, left: 56 };
     var dpr = window.devicePixelRatio || 1;
 
@@ -297,90 +301,6 @@
     function yFor(c, h) {
         return padding.top + (1 - (c - minC) / (maxC - minC)) * (h - padding.top - padding.bottom);
     }
-
-    // Price-scaled Lines (SMA/EMA/Price/Constant) share the main chart's
-    // price axis; oscillator-scaled ones (RSI — see
-    // App\Line\FormulaEvaluator::scaleFor()) get their own fixed 0-100
-    // panel below instead of being squashed against the price range.
-    var allLines = data.lines || [];
-    var overlayLines = allLines.filter(function (l) { return l.scale !== 'oscillator'; });
-    var oscillatorLines = allLines.filter(function (l) { return l.scale === 'oscillator'; });
-    var palette = ['#b3690a', '#7e3ff2', '#0a9396', '#c9184a', '#495057'];
-    // Indexed from the full selection, not per-panel, so a line keeps the
-    // same color whether it lands on the main chart or the secondary panel.
-    function colorFor(line) { return palette[allLines.indexOf(line) % palette.length]; }
-
-    function draw() {
-        var w = canvas.clientWidth, h = canvas.clientHeight;
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, w, h);
-
-        // Gridlines + price labels
-        ctx.strokeStyle = '#edf0f2';
-        ctx.fillStyle = '#5b6472';
-        ctx.font = '11px Inter, sans-serif';
-        ctx.lineWidth = 1;
-        var steps = 4;
-        for (var i = 0; i <= steps; i++) {
-            var c = minC + (maxC - minC) * (i / steps);
-            var y = yFor(c, h);
-            ctx.beginPath();
-            ctx.moveTo(padding.left, y);
-            ctx.lineTo(w - padding.right, y);
-            ctx.stroke();
-            ctx.fillText(c.toFixed(0), 6, y + 3);
-        }
-
-        // Price line
-        ctx.strokeStyle = '#1c6dd0';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        prices.forEach(function (p, i) {
-            var x = xFor(p.t, w), y = yFor(p.c, h);
-            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-
-        // Overlay lines — one path per line, skipping gaps where a formula
-        // is still warming up (v === null) rather than drawing through them.
-        overlayLines.forEach(function (line) {
-            ctx.strokeStyle = colorFor(line);
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            var started = false;
-            line.points.forEach(function (p) {
-                if (p.v === null) { started = false; return; }
-                var x = xFor(p.t, w), y = yFor(p.v, h);
-                if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
-            });
-            ctx.stroke();
-        });
-
-        // Signal markers
-        (data.signals || []).forEach(function (s) {
-            var x = xFor(s.t, w), y = yFor(s.p, h);
-            ctx.beginPath();
-            ctx.fillStyle = s.type === 'BUY' ? '#1a8754' : '#c0362c';
-            ctx.arc(x, y, 3.5, 0, Math.PI * 2);
-            ctx.fill();
-        });
-    }
-
-    function addLegendEntry(legendEl, line) {
-        var span = document.createElement('span');
-        var dot = document.createElement('span');
-        dot.className = 'legend-line';
-        dot.style.background = colorFor(line);
-        span.appendChild(dot);
-        span.appendChild(document.createTextNode(' ' + line.name));
-        legendEl.appendChild(span);
-    }
-
-    var legend = document.getElementById('chartLegend');
-    overlayLines.forEach(function (line) { addLegendEntry(legend, line); });
-
     function nearestIndex(x, w) {
         var t = minT + (x - padding.left) / (w - padding.left - padding.right) * (maxT - minT);
         var lo = 0, hi = prices.length - 1;
@@ -391,50 +311,183 @@
         return lo;
     }
 
-    canvas.addEventListener('mousemove', function (e) {
-        var rect = canvas.getBoundingClientRect();
-        var x = e.clientX - rect.left, w = canvas.clientWidth, h = canvas.clientHeight;
-        var i = nearestIndex(x, w);
-        var p = prices[i];
-        if (!p) return;
-        var px = xFor(p.t, w), py = yFor(p.c, h);
-        tooltip.style.left = px + 'px';
-        tooltip.style.top = (py - 10) + 'px';
-        tooltip.style.opacity = '1';
-        var d = new Date(p.t * 1000);
-        var text = d.toISOString().slice(0, 10) + '  ' + p.c.toFixed(2);
-        overlayLines.forEach(function (line) {
-            var lv = line.points[i] ? line.points[i].v : null;
-            if (lv !== null) text += '\n' + line.name + ': ' + lv.toFixed(2);
-        });
-        tooltip.textContent = text;
-    });
-    canvas.addEventListener('mouseleave', function () {
-        tooltip.style.opacity = '0';
-    });
+    // Every owned Line, index-aligned with `prices` — see
+    // App\Controller\DashboardController::index(). Which lines appear on
+    // which chart panel is purely client-side layout state (see below), not
+    // baked into this payload.
+    var allLines = data.lines || [];
+    var linesById = {};
+    allLines.forEach(function (l) { linesById[l.id] = l; });
+    var palette = ['#b3690a', '#7e3ff2', '#0a9396', '#c9184a', '#495057', '#1c6dd0', '#7f8c00'];
+    function colorFor(lineId) {
+        var idx = allLines.findIndex(function (l) { return l.id === lineId; });
+        return palette[Math.max(idx, 0) % palette.length];
+    }
 
-    // -- Secondary (oscillator) panel — fixed 0-100 scale, its own tooltip,
-    // shown only when at least one selected Line is oscillator-scaled.
+    // -- Panel layout: panels[0] is always the main chart; the rest are
+    // user-added blank panels. Restored from the layoutInput hidden field
+    // (itself seeded from ?layout= — see DashboardController), and kept in
+    // sync with both that field and the URL on every change so a reload or
+    // a shared link reproduces the same layout. Never sent to the server
+    // for validation — line ids not present in allLines are simply dropped.
+    var layoutInput = document.getElementById('layoutInput');
+
+    function loadLayout() {
+        var raw = layoutInput ? layoutInput.value : '';
+        var parsed = null;
+        if (raw) {
+            try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
+        }
+        var mainLines = [];
+        var extra = [];
+        if (parsed && Array.isArray(parsed.panels)) {
+            parsed.panels.forEach(function (p) {
+                var validLines = Array.isArray(p.lines) ? p.lines.filter(function (id) { return linesById[id]; }) : [];
+                if (p.id === 'main') {
+                    mainLines = validLines;
+                } else if (typeof p.id === 'string' && p.id) {
+                    extra.push({ id: p.id, lines: validLines });
+                }
+            });
+        }
+        return [{ id: 'main', lines: mainLines }].concat(extra);
+    }
+
+    var panels = loadLayout();
+
+    function findPanel(id) {
+        for (var i = 0; i < panels.length; i++) if (panels[i].id === id) return panels[i];
+        return null;
+    }
+
+    function persistLayout() {
+        var json = JSON.stringify({ panels: panels });
+        if (layoutInput) layoutInput.value = json;
+        if (window.history && window.history.replaceState) {
+            try {
+                var url = new URL(window.location.href);
+                url.searchParams.set('layout', json);
+                window.history.replaceState(null, '', url.toString());
+            } catch (e) { /* URL API unsupported — layoutInput still carries state through a real submit */ }
+        }
+    }
+    persistLayout(); // normalizes away any stale/invalid ids from a tampered URL
+
+    function appendLegendEntries(legendEl, lines, panelId, onRemove) {
+        lines.forEach(function (line) {
+            var span = document.createElement('span');
+            var dot = document.createElement('span');
+            dot.className = 'legend-line';
+            dot.style.background = colorFor(line.id);
+            span.appendChild(dot);
+            span.appendChild(document.createTextNode(' ' + line.name + ' '));
+            var remove = document.createElement('span');
+            remove.className = 'legend-remove';
+            remove.textContent = '×';
+            remove.title = 'Remove from this chart';
+            remove.addEventListener('click', function () {
+                var panel = findPanel(panelId);
+                panel.lines = panel.lines.filter(function (id) { return id !== line.id; });
+                persistLayout();
+                onRemove();
+            });
+            span.appendChild(remove);
+            legendEl.appendChild(span);
+        });
+    }
+
+    // -- Main panel: price + strategy signals (unchanged) plus whichever
+    // Lines are assigned to it, split by scale like the secondary-panel
+    // feature already established (oscillator-scaled Lines get the fixed
+    // 0-100 sub-panel instead of squashing against the price axis).
+    var canvas = document.getElementById('priceChart');
+    var tooltip = document.getElementById('chartTooltip');
+    var ctx = canvas.getContext('2d');
     var oscPanel = document.getElementById('oscillatorPanel');
     var oscCanvas = document.getElementById('oscillatorChart');
     var oscTooltip = document.getElementById('oscillatorTooltip');
     var oscLegend = document.getElementById('oscillatorLegend');
+    var octx = oscCanvas.getContext('2d');
+
+    function mainPanelLines() {
+        var panel = findPanel('main');
+        return panel.lines.map(function (id) { return linesById[id]; }).filter(Boolean);
+    }
+
+    function drawMain() {
+        var overlayLines = mainPanelLines().filter(function (l) { return l.scale !== 'oscillator'; });
+
+        var w = canvas.clientWidth, h = canvas.clientHeight;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+
+        ctx.strokeStyle = '#edf0f2';
+        ctx.fillStyle = '#5b6472';
+        ctx.font = '11px Inter, sans-serif';
+        ctx.lineWidth = 1;
+        for (var i = 0; i <= 4; i++) {
+            var c = minC + (maxC - minC) * (i / 4);
+            var y = yFor(c, h);
+            ctx.beginPath();
+            ctx.moveTo(padding.left, y);
+            ctx.lineTo(w - padding.right, y);
+            ctx.stroke();
+            ctx.fillText(c.toFixed(0), 6, y + 3);
+        }
+
+        ctx.strokeStyle = '#1c6dd0';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        prices.forEach(function (p, idx) {
+            var x = xFor(p.t, w), yy = yFor(p.c, h);
+            if (idx === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+        });
+        ctx.stroke();
+
+        overlayLines.forEach(function (line) {
+            ctx.strokeStyle = colorFor(line.id);
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            var started = false;
+            line.points.forEach(function (p) {
+                if (p.v === null) { started = false; return; }
+                var x = xFor(p.t, w), yy = yFor(p.v, h);
+                if (!started) { ctx.moveTo(x, yy); started = true; } else { ctx.lineTo(x, yy); }
+            });
+            ctx.stroke();
+        });
+
+        (data.signals || []).forEach(function (s) {
+            var x = xFor(s.t, w), yy = yFor(s.p, h);
+            ctx.beginPath();
+            ctx.fillStyle = s.type === 'BUY' ? '#1a8754' : '#c0362c';
+            ctx.arc(x, yy, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        var legend = document.getElementById('chartLegend');
+        legend.innerHTML =
+            '<span><span class="legend-line" style="background:#1c6dd0"></span> {{ symbol }} adj. close</span>' +
+            '<span><span class="legend-dot" style="background:#1a8754"></span> Buy</span>' +
+            '<span><span class="legend-dot" style="background:#c0362c"></span> Sell</span>';
+        appendLegendEntries(legend, overlayLines, 'main', renderMain);
+    }
 
     function drawOscillator() {
-        if (oscillatorLines.length === 0) return;
-        var octx = oscCanvas.getContext('2d');
+        var oscillatorLines = mainPanelLines().filter(function (l) { return l.scale === 'oscillator'; });
+        oscPanel.classList.toggle('hidden', oscillatorLines.length === 0);
+        if (oscillatorLines.length === 0) { oscLegend.innerHTML = ''; return; }
+
         var w = oscCanvas.clientWidth, h = oscCanvas.clientHeight;
         oscCanvas.width = w * dpr;
         oscCanvas.height = h * dpr;
         octx.setTransform(dpr, 0, 0, dpr, 0, 0);
         octx.clearRect(0, 0, w, h);
 
-        function oscYFor(v, h) {
-            return padding.top + (1 - v / 100) * (h - padding.top - padding.bottom);
-        }
+        function oscYFor(v, hh) { return padding.top + (1 - v / 100) * (hh - padding.top - padding.bottom); }
 
-        // Gridlines at 0/30/70/100, with 30/70 (the conventional RSI
-        // overbought/oversold levels) picked out in amber like a reference band.
         [0, 30, 70, 100].forEach(function (v) {
             var y = oscYFor(v, h);
             octx.strokeStyle = (v === 30 || v === 70) ? '#e0a94a' : '#edf0f2';
@@ -449,7 +502,7 @@
         });
 
         oscillatorLines.forEach(function (line) {
-            octx.strokeStyle = colorFor(line);
+            octx.strokeStyle = colorFor(line.id);
             octx.lineWidth = 1.5;
             octx.beginPath();
             var started = false;
@@ -460,40 +513,257 @@
             });
             octx.stroke();
         });
+
+        oscLegend.innerHTML = '';
+        appendLegendEntries(oscLegend, oscillatorLines, 'main', renderMain);
     }
 
-    if (oscillatorLines.length > 0) {
-        oscPanel.classList.remove('hidden');
-        oscillatorLines.forEach(function (line) { addLegendEntry(oscLegend, line); });
+    function renderMain() { drawMain(); drawOscillator(); }
 
-        oscCanvas.addEventListener('mousemove', function (e) {
-            var rect = oscCanvas.getBoundingClientRect();
-            var x = e.clientX - rect.left, w = oscCanvas.clientWidth, h = oscCanvas.clientHeight;
+    canvas.addEventListener('mousemove', function (e) {
+        var rect = canvas.getBoundingClientRect();
+        var x = e.clientX - rect.left, w = canvas.clientWidth, h = canvas.clientHeight;
+        var i = nearestIndex(x, w);
+        var p = prices[i];
+        if (!p) return;
+        var px = xFor(p.t, w), py = yFor(p.c, h);
+        tooltip.style.left = px + 'px';
+        tooltip.style.top = (py - 10) + 'px';
+        tooltip.style.opacity = '1';
+        var d = new Date(p.t * 1000);
+        var text = d.toISOString().slice(0, 10) + '  ' + p.c.toFixed(2);
+        mainPanelLines().forEach(function (line) {
+            var lv = line.points[i] ? line.points[i].v : null;
+            if (lv !== null) text += '\n' + line.name + ': ' + lv.toFixed(2);
+        });
+        tooltip.textContent = text;
+    });
+    canvas.addEventListener('mouseleave', function () { tooltip.style.opacity = '0'; });
+
+    oscCanvas.addEventListener('mousemove', function (e) {
+        var lines = mainPanelLines().filter(function (l) { return l.scale === 'oscillator'; });
+        if (lines.length === 0) return;
+        var rect = oscCanvas.getBoundingClientRect();
+        var x = e.clientX - rect.left, w = oscCanvas.clientWidth;
+        var i = nearestIndex(x, w);
+        var p = prices[i];
+        if (!p) return;
+        var px = xFor(p.t, w);
+        var d = new Date(p.t * 1000);
+        var text = d.toISOString().slice(0, 10);
+        var any = false;
+        lines.forEach(function (line) {
+            var lv = line.points[i] ? line.points[i].v : null;
+            if (lv !== null) { text += '\n' + line.name + ': ' + lv.toFixed(2); any = true; }
+        });
+        if (!any) return;
+        oscTooltip.style.left = px + 'px';
+        oscTooltip.style.top = '10px';
+        oscTooltip.style.opacity = '1';
+        oscTooltip.textContent = text;
+    });
+    oscCanvas.addEventListener('mouseleave', function () { oscTooltip.style.opacity = '0'; });
+
+    // -- Extra (blank) panels: no price line/signals, auto-fit to whatever
+    // Lines are dropped on them. Mixing a price-scaled and an
+    // oscillator-scaled Line on the same blank panel isn't handled specially
+    // (both share one auto-fit axis) — a known limitation, not a bug.
+    var extraPanelRenderers = [];
+
+    function panelVDomain(lines) {
+        var minV = Infinity, maxV = -Infinity;
+        lines.forEach(function (line) {
+            line.points.forEach(function (p) {
+                if (p.v !== null) { if (p.v < minV) minV = p.v; if (p.v > maxV) maxV = p.v; }
+            });
+        });
+        if (minV === Infinity) { minV = 0; maxV = 1; }
+        var vPad = (maxV - minV) * 0.06 || 1;
+        minV -= vPad; maxV += vPad;
+        return {
+            minV: minV, maxV: maxV,
+            yForV: function (v, h) { return padding.top + (1 - (v - minV) / (maxV - minV)) * (h - padding.top - padding.bottom); },
+        };
+    }
+
+    function createPanelElement(panel) {
+        var card = document.createElement('div');
+        card.className = 'card';
+
+        var header = document.createElement('div');
+        header.className = 'chart-panel-header';
+        var title = document.createElement('h3');
+        title.textContent = 'Chart';
+        var removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'btn btn-secondary';
+        removeBtn.textContent = 'Remove';
+        header.appendChild(title);
+        header.appendChild(removeBtn);
+        card.appendChild(header);
+
+        var blank = document.createElement('div');
+        blank.className = 'blank-panel';
+        var placeholder = document.createElement('div');
+        placeholder.className = 'blank-panel-placeholder';
+        placeholder.textContent = 'Drag a Line here to plot it.';
+        blank.appendChild(placeholder);
+        card.appendChild(blank);
+
+        var chartWrap = document.createElement('div');
+        chartWrap.className = 'chart-wrap hidden';
+        var pCanvas = document.createElement('canvas');
+        var pTooltip = document.createElement('div');
+        pTooltip.className = 'chart-tooltip';
+        chartWrap.appendChild(pCanvas);
+        chartWrap.appendChild(pTooltip);
+        card.appendChild(chartWrap);
+
+        var legend = document.createElement('div');
+        legend.className = 'chart-legend';
+        card.appendChild(legend);
+
+        var pctx = pCanvas.getContext('2d');
+
+        function render() {
+            var lines = panel.lines.map(function (id) { return linesById[id]; }).filter(Boolean);
+            if (lines.length === 0) {
+                blank.classList.remove('hidden');
+                chartWrap.classList.add('hidden');
+                legend.innerHTML = '';
+                return;
+            }
+            blank.classList.add('hidden');
+            chartWrap.classList.remove('hidden');
+
+            var w = pCanvas.clientWidth, h = pCanvas.clientHeight;
+            pCanvas.width = w * dpr;
+            pCanvas.height = h * dpr;
+            pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            pctx.clearRect(0, 0, w, h);
+
+            var domain = panelVDomain(lines);
+            pctx.strokeStyle = '#edf0f2';
+            pctx.fillStyle = '#5b6472';
+            pctx.font = '11px Inter, sans-serif';
+            pctx.lineWidth = 1;
+            for (var i = 0; i <= 4; i++) {
+                var v = domain.minV + (domain.maxV - domain.minV) * (i / 4);
+                var y = domain.yForV(v, h);
+                pctx.beginPath();
+                pctx.moveTo(padding.left, y);
+                pctx.lineTo(w - padding.right, y);
+                pctx.stroke();
+                pctx.fillText(v.toFixed(1), 6, y + 3);
+            }
+
+            lines.forEach(function (line) {
+                pctx.strokeStyle = colorFor(line.id);
+                pctx.lineWidth = 1.5;
+                pctx.beginPath();
+                var started = false;
+                line.points.forEach(function (p) {
+                    if (p.v === null) { started = false; return; }
+                    var x = xFor(p.t, w), y = domain.yForV(p.v, h);
+                    if (!started) { pctx.moveTo(x, y); started = true; } else { pctx.lineTo(x, y); }
+                });
+                pctx.stroke();
+            });
+
+            legend.innerHTML = '';
+            appendLegendEntries(legend, lines, panel.id, render);
+        }
+
+        pCanvas.addEventListener('mousemove', function (e) {
+            var lines = panel.lines.map(function (id) { return linesById[id]; }).filter(Boolean);
+            if (lines.length === 0) return;
+            var rect = pCanvas.getBoundingClientRect();
+            var x = e.clientX - rect.left, w = pCanvas.clientWidth;
             var i = nearestIndex(x, w);
             var p = prices[i];
             if (!p) return;
+            var domain = panelVDomain(lines);
             var px = xFor(p.t, w);
             var d = new Date(p.t * 1000);
             var text = d.toISOString().slice(0, 10);
             var any = false;
-            oscillatorLines.forEach(function (line) {
+            lines.forEach(function (line) {
                 var lv = line.points[i] ? line.points[i].v : null;
                 if (lv !== null) { text += '\n' + line.name + ': ' + lv.toFixed(2); any = true; }
             });
             if (!any) return;
-            oscTooltip.style.left = px + 'px';
-            oscTooltip.style.top = '10px';
-            oscTooltip.style.opacity = '1';
-            oscTooltip.textContent = text;
+            pTooltip.style.left = px + 'px';
+            pTooltip.style.top = '10px';
+            pTooltip.style.opacity = '1';
+            pTooltip.textContent = text;
         });
-        oscCanvas.addEventListener('mouseleave', function () {
-            oscTooltip.style.opacity = '0';
+        pCanvas.addEventListener('mouseleave', function () { pTooltip.style.opacity = '0'; });
+
+        wireDropTarget(card, panel, render);
+
+        removeBtn.addEventListener('click', function () {
+            panels = panels.filter(function (p) { return p.id !== panel.id; });
+            extraPanelRenderers = extraPanelRenderers.filter(function (r) { return r.panel.id !== panel.id; });
+            card.remove();
+            persistLayout();
+        });
+
+        extraPanelRenderers.push({ panel: panel, render: render, el: card });
+        return card;
+    }
+
+    function wireDropTarget(el, panel, onDrop) {
+        el.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            el.classList.add('drag-over');
+        });
+        el.addEventListener('dragleave', function () { el.classList.remove('drag-over'); });
+        el.addEventListener('drop', function (e) {
+            e.preventDefault();
+            el.classList.remove('drag-over');
+            var lineId = parseInt(e.dataTransfer.getData('text/plain'), 10);
+            if (!linesById[lineId]) return;
+            if (panel.lines.indexOf(lineId) === -1) panel.lines.push(lineId);
+            persistLayout();
+            onDrop();
         });
     }
 
-    function redraw() { draw(); drawOscillator(); }
-    redraw();
-    window.addEventListener('resize', redraw);
+    // Wire the main chart itself as a drop target too, so dragging a Line
+    // straight onto the price chart works the same way as onto a blank one.
+    wireDropTarget(document.querySelector('.dashboard-main .chart-wrap'), findPanel('main'), renderMain);
+
+    document.querySelectorAll('.line-chip').forEach(function (chip) {
+        chip.addEventListener('dragstart', function (e) {
+            e.dataTransfer.setData('text/plain', chip.getAttribute('data-line-id'));
+            chip.classList.add('dragging');
+        });
+        chip.addEventListener('dragend', function () { chip.classList.remove('dragging'); });
+    });
+
+    var addChartBtn = document.getElementById('addChartBtn');
+    if (addChartBtn) {
+        addChartBtn.addEventListener('click', function () {
+            var panel = { id: 'p' + Date.now(), lines: [] };
+            panels.push(panel);
+            var el = createPanelElement(panel);
+            document.getElementById('extraPanels').appendChild(el);
+            persistLayout();
+        });
+    }
+
+    // Restore any extra panels from a reloaded/shared layout.
+    panels.slice(1).forEach(function (panel) {
+        var el = createPanelElement(panel);
+        document.getElementById('extraPanels').appendChild(el);
+    });
+
+    function redrawAll() {
+        renderMain();
+        extraPanelRenderers.forEach(function (r) { r.render(); });
+    }
+    redrawAll();
+    window.addEventListener('resize', redrawAll);
 })();
 </script>
 
