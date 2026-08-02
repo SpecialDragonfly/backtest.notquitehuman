@@ -155,5 +155,6 @@ return [
         containerGet($c, Environment::class),
         containerGet($c, TickerRepository::class),
         containerGet($c, PriceHistoryRepository::class),
+        containerGet($c, PriceSyncService::class),
     ),
 ];

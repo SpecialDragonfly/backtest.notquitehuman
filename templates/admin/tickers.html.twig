@@ -5,10 +5,10 @@
 {% block body %}
 <div class="card">
     <h1>Tickers</h1>
-    <p>The tradable universe used by the dashboard, Lab, and the daily sync cron. Adding a ticker here backfills its full history automatically on the next daily sync.</p>
+    <p>The tradable universe used by the dashboard, Lab, and the daily sync cron. Adding a ticker here backfills its full history immediately.</p>
 
     {% if added %}
-        <div class="admin-notice admin-notice-ok">Added "{{ added }}" — it'll be backfilled on the next daily sync.</div>
+        <div class="admin-notice admin-notice-ok">Added {{ added }}.</div>
     {% endif %}
     {% if error %}
         <div class="admin-notice admin-notice-error">{{ error }}</div>

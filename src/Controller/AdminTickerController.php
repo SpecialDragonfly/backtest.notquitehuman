@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Backtest\TickerUniverse;
 use App\Repository\PriceHistoryRepository;
 use App\Repository\TickerRepository;
+use App\Service\PriceSyncService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Twig\Environment;
@@ -19,6 +20,7 @@ class AdminTickerController
         private Environment $twig,
         private TickerRepository $tickerRepository,
         private PriceHistoryRepository $priceHistoryRepository,
+        private PriceSyncService $priceSyncService,
     ) {}
 
     /**
@@ -69,7 +71,23 @@ class AdminTickerController
 
         $this->tickerRepository->add($ticker);
 
-        return $response->withHeader('Location', '/admin/tickers?added=' . urlencode($ticker))->withStatus(302);
+        // Backfill immediately rather than waiting for the next daily cron,
+        // so the ticker has usable data (and shows up correctly on this
+        // page) as soon as it's added.
+        $symbol = TickerUniverse::toYahooSymbol($ticker);
+        $rows = $this->priceSyncService->sync($symbol);
+
+        if ($rows === 0) {
+            return $response
+                ->withHeader('Location', '/admin/tickers?error=' . urlencode(
+                    "\"{$ticker}\" was added, but no historical data came back from Yahoo for \"{$symbol}\" — check the symbol; it'll retry on the next daily sync."
+                ))
+                ->withStatus(302);
+        }
+
+        return $response
+            ->withHeader('Location', '/admin/tickers?added=' . urlencode("{$ticker} ({$rows} day(s) backfilled)"))
+            ->withStatus(302);
     }
 
     private function redirectWithError(Response $response, string $message): Response
