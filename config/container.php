@@ -48,7 +48,7 @@ return [
     // through the same service instead of ad hoc echo/error_log calls.
     LoggerInterface::class => function () {
         $logger = new Logger('backtest');
-        $logger->pushHandler(new StreamHandler(dirname(__DIR__) . '/var/log/app.log', Level::Info));
+        $logger->pushHandler(new StreamHandler(dirname(__DIR__) . '/var/log/error.log', Level::Info));
         return $logger;
     },
 
