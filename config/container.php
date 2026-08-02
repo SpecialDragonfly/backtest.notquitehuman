@@ -6,6 +6,7 @@ use App\Controller\AuthController;
 use App\Controller\DashboardController;
 use App\Controller\LabController;
 use App\Controller\LineController;
+use App\Controller\TriggerController;
 use App\Line\FormulaEvaluator;
 use App\Line\TriggerEvaluationService;
 use App\Middleware\AdminOnlyMiddleware;
@@ -178,5 +179,13 @@ return [
     LineController::class => fn(ContainerInterface $c) => new LineController(
         containerGet($c, Environment::class),
         containerGet($c, LineRepository::class),
+    ),
+    TriggerController::class => fn(ContainerInterface $c) => new TriggerController(
+        containerGet($c, Environment::class),
+        containerGet($c, TriggerRepository::class),
+        containerGet($c, LineRepository::class),
+        containerGet($c, TickerRepository::class),
+        containerGet($c, TriggerEvaluationService::class),
+        containerGet($c, TickerBacktestService::class),
     ),
 ];

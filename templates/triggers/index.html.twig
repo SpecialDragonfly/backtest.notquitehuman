@@ -1,0 +1,111 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Triggers — Backtest{% endblock %}
+
+{% block body %}
+<div class="card">
+    <h1>Triggers</h1>
+    <p>Watch two of your Lines for one crossing above/below the other. When that first becomes true it's a firing — shown here across history, and (once armed) recorded as a live Alert the day it next happens for real.</p>
+
+    {% if added %}
+        <div class="notice notice-ok">{{ added }}.</div>
+    {% endif %}
+    {% if error %}
+        <div class="notice notice-error">{{ error }}</div>
+    {% endif %}
+
+    {% if rows is empty %}
+        <p>No triggers yet — add one below.</p>
+    {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Ticker</th>
+                    <th>Condition</th>
+                    <th>Status</th>
+                    <th>Historical fires</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td>{{ row.trigger.name }}</td>
+                    <td>{{ row.trigger.ticker }}</td>
+                    <td>{{ row.lineAName }} is {{ row.operator == 'ABOVE' ? 'above' : 'below' }} {{ row.lineBName }}</td>
+                    <td>
+                        {% if row.trigger.active %}
+                            <span class="badge badge-on">Armed</span>
+                        {% else %}
+                            <span class="badge badge-off">Disarmed</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.firedCount > 0 %}
+                            {{ row.firedCount }}× — most recently {{ row.recentFiredDates|join(', ') }}
+                        {% else %}
+                            Never
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="post" action="/triggers/{{ row.trigger.id }}/toggle" style="display:inline">
+                            <button type="submit" class="btn btn-secondary">{{ row.trigger.active ? 'Disarm' : 'Arm' }}</button>
+                        </form>
+                        <form method="post" action="/triggers/{{ row.trigger.id }}/delete" style="display:inline">
+                            <button type="submit" class="btn btn-secondary">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>New trigger</h2>
+    {% if lines|length < 2 %}
+        <p>You need at least two <a href="/lines">Lines</a> to build a trigger.</p>
+    {% else %}
+        <form method="post" action="/triggers" class="picker-row">
+            <div class="form-group">
+                <label for="name">Name</label>
+                <input type="text" id="name" name="name" placeholder="e.g. Golden cross" required>
+            </div>
+            <div class="form-group">
+                <label for="ticker">Ticker</label>
+                <select id="ticker" name="ticker">
+                    {% for t in tickers %}
+                        <option value="{{ t }}">{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="line_a_id">Line A</label>
+                <select id="line_a_id" name="line_a_id">
+                    {% for line in lines %}
+                        <option value="{{ line.id }}">{{ line.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="operator">Condition</label>
+                <select id="operator" name="operator">
+                    <option value="ABOVE">is above</option>
+                    <option value="BELOW">is below</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="line_b_id">Line B</label>
+                <select id="line_b_id" name="line_b_id">
+                    {% for line in lines %}
+                        <option value="{{ line.id }}" {{ loop.index == 2 ? 'selected' : '' }}>{{ line.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn">Add trigger</button>
+        </form>
+    {% endif %}
+</div>
+{% endblock %}
