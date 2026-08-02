@@ -17,7 +17,19 @@ class YahooFinanceClient
     public function fetchRange(string $symbol, string $start, string $end): array
     {
         $url = $this->buildUrl($symbol, $start, $end);
-        $json = $this->download($url);
+        return $this->parseJson($this->download($url));
+    }
+
+    /**
+     * Parses a raw Yahoo chart API JSON response (the same shape fetchRange()
+     * downloads) into daily bars — exposed so callers with an already-fetched
+     * payload (e.g. an on-disk cache from before price_history existed) can
+     * reuse the exact same parsing rules instead of duplicating them.
+     *
+     * @return YahooFinanceData[]
+     */
+    public function parseJson(string $json): array
+    {
         return $this->parse(json_decode($json, true));
     }
 

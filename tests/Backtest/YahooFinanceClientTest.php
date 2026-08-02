@@ -54,4 +54,33 @@ class YahooFinanceClientTest extends TestCase
 
         $this->assertSame([], $client->fetchRange('BOGUS.L', '2021-01-01', '2021-01-02'));
     }
+
+    public function testParseJsonAppliesTheSameRulesAsFetchRangeToAnAlreadyDownloadedPayload(): void
+    {
+        // What bin/import-legacy-cache.php feeds in: raw JSON already sitting
+        // on disk, no download() call involved at all.
+        $payload = [
+            'chart' => [
+                'result' => [[
+                    'timestamp' => [1000, 2000],
+                    'indicators' => [
+                        'quote' => [[
+                            'open' => [10.0, null],
+                            'high' => [10.5, null],
+                            'low' => [9.5, null],
+                            'close' => [10.0, null],
+                            'volume' => [100, null],
+                        ]],
+                        'adjclose' => [['adjclose' => [10.0, null]]],
+                    ],
+                ]],
+            ],
+        ];
+
+        $client = new YahooFinanceClient();
+        $candles = $client->parseJson(json_encode($payload));
+
+        $this->assertCount(1, $candles);
+        $this->assertEquals(1000, $candles[0]->timestamp);
+    }
 }
