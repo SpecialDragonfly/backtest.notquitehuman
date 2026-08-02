@@ -31,3 +31,13 @@ services:
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - php
+    # Also joins the notquitehuman.new stack's revproxy network, so that
+    # revproxy can reverse-proxy to this container by name (backtest_nqh_nginx)
+    # instead of via host.docker.internal/a published host port.
+    networks:
+      - default
+      - websites_mynet
+
+networks:
+  websites_mynet:
+    external: true
