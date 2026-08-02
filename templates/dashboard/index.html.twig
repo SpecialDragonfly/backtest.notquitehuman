@@ -80,9 +80,6 @@
 
 {% if not isGuest %}
 <div id="extraPanels"></div>
-<div class="card" style="text-align:center;">
-    <button type="button" class="btn btn-secondary" id="addChartBtn">+ Add chart</button>
-</div>
 {% endif %}
 
 <div class="card">
@@ -124,17 +121,28 @@
 <div class="dashboard-sidebar">
     <div class="card">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+            <h2 style="margin:0;">Charts</h2>
+            <button type="button" class="btn btn-secondary" id="addChartBtn">+ Add chart</button>
+        </div>
+        <ul class="chart-tree" id="chartSidebarTree"></ul>
+    </div>
+
+    <div class="card">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
             <h2 style="margin:0;">Lines</h2>
             <button type="button" class="btn btn-secondary" id="openLineModal">+ New</button>
         </div>
         {% if userLines is empty %}
             <p style="font-size:0.9rem; color:#5b6472; margin-top:0.75rem;">No lines yet.</p>
         {% else %}
-            <p style="font-size:0.8rem; color:#5b6472; margin:0.5rem 0 0;">Drag onto any chart to plot it there.</p>
-            <div style="margin-top:0.5rem; display:flex; flex-direction:column; gap:0.5rem;">
+            <div style="margin-top:0.75rem; display:flex; flex-direction:column;">
             {% for line in userLines %}
-                <div class="line-chip" draggable="true" data-line-id="{{ line.id }}">
-                    <span class="drag-handle">⠿</span> {{ line.name }}
+                <div class="sidebar-line-row">
+                    <span>{{ line.name }}</span>
+                    <form method="post" action="/lines/{{ line.id }}/delete">
+                        <input type="hidden" name="redirect_to" value="/">
+                        <button type="submit" class="line-delete-btn" title="Delete line">&times;</button>
+                    </form>
                 </div>
             {% endfor %}
             </div>
@@ -373,7 +381,7 @@
     }
     persistLayout(); // normalizes away any stale/invalid ids from a tampered URL
 
-    function appendLegendEntries(legendEl, lines, panelId, onRemove) {
+    function appendLegendEntries(legendEl, lines, panelId) {
         lines.forEach(function (line) {
             var span = document.createElement('span');
             var dot = document.createElement('span');
@@ -385,14 +393,147 @@
             remove.className = 'legend-remove';
             remove.textContent = '×';
             remove.title = 'Remove from this chart';
-            remove.addEventListener('click', function () {
-                var panel = findPanel(panelId);
-                panel.lines = panel.lines.filter(function (id) { return id !== line.id; });
-                persistLayout();
-                onRemove();
-            });
+            remove.addEventListener('click', function () { removeLineFromPanel(panelId, line.id); });
             span.appendChild(remove);
             legendEl.appendChild(span);
+        });
+    }
+
+    // -- Panel/line management, driven entirely from the sidebar's Charts
+    // tree (see renderSidebar below) — this is the single place lines get
+    // added to/removed from a chart panel, and panels get added/removed.
+    // The chart-panel legends' own "×" above call into the same functions,
+    // so either surface stays in sync with the other.
+    function rerenderPanel(panelId) {
+        if (panelId === 'main') { renderMain(); return; }
+        var found = extraPanelRenderers.filter(function (r) { return r.panel.id === panelId; })[0];
+        if (found) found.render();
+    }
+
+    function removeLineFromPanel(panelId, lineId) {
+        var panel = findPanel(panelId);
+        if (!panel) return;
+        panel.lines = panel.lines.filter(function (id) { return id !== lineId; });
+        persistLayout();
+        rerenderPanel(panelId);
+        renderSidebar();
+    }
+
+    function addLineToPanel(panelId, lineId) {
+        var panel = findPanel(panelId);
+        if (!panel) return;
+        if (panel.lines.indexOf(lineId) === -1) panel.lines.push(lineId);
+        persistLayout();
+        rerenderPanel(panelId);
+        renderSidebar();
+    }
+
+    function removePanel(panelId) {
+        panels = panels.filter(function (p) { return p.id !== panelId; });
+        var found = extraPanelRenderers.filter(function (r) { return r.panel.id === panelId; })[0];
+        if (found) found.el.remove();
+        extraPanelRenderers = extraPanelRenderers.filter(function (r) { return r.panel.id !== panelId; });
+        persistLayout();
+        renderSidebar();
+    }
+
+    function panelLabel(panel) {
+        if (panel.id === 'main') return 'Main chart';
+        return 'Chart ' + (panels.indexOf(panel) + 1);
+    }
+
+    // Builds one <li> of the sidebar tree: a group name (Overlays/Oscillator
+    // for the main chart, or the chart's own label for an extra panel), the
+    // lines currently assigned to it as child <li>s each with a "×", and a
+    // "+ Add line…" select of whichever of the user's lines aren't on it yet.
+    function buildChartGroup(label, panel, scaleFilter, removable) {
+        var li = document.createElement('li');
+        li.className = 'chart-tree-item';
+
+        var header = document.createElement('div');
+        header.className = 'chart-tree-header';
+        var titleSpan = document.createElement('span');
+        titleSpan.textContent = label;
+        header.appendChild(titleSpan);
+        if (removable) {
+            var removeChartBtn = document.createElement('button');
+            removeChartBtn.type = 'button';
+            removeChartBtn.className = 'chart-section-remove';
+            removeChartBtn.textContent = 'Remove chart';
+            removeChartBtn.addEventListener('click', function () { removePanel(panel.id); });
+            header.appendChild(removeChartBtn);
+        }
+        li.appendChild(header);
+
+        var childUl = document.createElement('ul');
+        childUl.className = 'chart-tree-lines';
+
+        var assignedLines = panel.lines.map(function (id) { return linesById[id]; }).filter(Boolean).filter(scaleFilter);
+        if (assignedLines.length === 0) {
+            var emptyLi = document.createElement('li');
+            emptyLi.className = 'chart-tree-line chart-tree-line-empty';
+            emptyLi.textContent = 'None assigned.';
+            childUl.appendChild(emptyLi);
+        } else {
+            assignedLines.forEach(function (line) {
+                var lineLi = document.createElement('li');
+                lineLi.className = 'chart-tree-line';
+                var left = document.createElement('span');
+                left.className = 'chart-tree-line-label';
+                var dot = document.createElement('span');
+                dot.className = 'legend-line';
+                dot.style.background = colorFor(line.id);
+                left.appendChild(dot);
+                left.appendChild(document.createTextNode(line.name));
+                lineLi.appendChild(left);
+                var removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'line-delete-btn';
+                removeBtn.textContent = '×';
+                removeBtn.title = 'Remove from this chart';
+                removeBtn.addEventListener('click', function () { removeLineFromPanel(panel.id, line.id); });
+                lineLi.appendChild(removeBtn);
+                childUl.appendChild(lineLi);
+            });
+        }
+
+        var available = allLines.filter(function (l) { return panel.lines.indexOf(l.id) === -1 && scaleFilter(l); });
+        if (available.length > 0) {
+            var addLi = document.createElement('li');
+            addLi.className = 'chart-tree-line chart-tree-add';
+            var select = document.createElement('select');
+            select.className = 'chart-add-line-select';
+            var placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = '+ Add line…';
+            select.appendChild(placeholder);
+            available.forEach(function (l) {
+                var opt = document.createElement('option');
+                opt.value = String(l.id);
+                opt.textContent = l.name;
+                select.appendChild(opt);
+            });
+            select.addEventListener('change', function () {
+                var id = parseInt(select.value, 10);
+                if (id) addLineToPanel(panel.id, id);
+            });
+            addLi.appendChild(select);
+            childUl.appendChild(addLi);
+        }
+
+        li.appendChild(childUl);
+        return li;
+    }
+
+    function renderSidebar() {
+        var tree = document.getElementById('chartSidebarTree');
+        if (!tree) return;
+        tree.innerHTML = '';
+        var mainPanel = findPanel('main');
+        tree.appendChild(buildChartGroup('Overlays', mainPanel, function (l) { return l.scale !== 'oscillator'; }, false));
+        tree.appendChild(buildChartGroup('Oscillator', mainPanel, function (l) { return l.scale === 'oscillator'; }, false));
+        panels.slice(1).forEach(function (panel) {
+            tree.appendChild(buildChartGroup(panelLabel(panel), panel, function () { return true; }, true));
         });
     }
 
@@ -472,7 +613,7 @@
             '<span><span class="legend-line" style="background:#1c6dd0"></span> {{ symbol }} adj. close</span>' +
             '<span><span class="legend-dot" style="background:#1a8754"></span> Buy</span>' +
             '<span><span class="legend-dot" style="background:#c0362c"></span> Sell</span>';
-        appendLegendEntries(legend, overlayLines, 'main', renderMain);
+        appendLegendEntries(legend, overlayLines, 'main');
     }
 
     function drawOscillator() {
@@ -515,7 +656,7 @@
         });
 
         oscLegend.innerHTML = '';
-        appendLegendEntries(oscLegend, oscillatorLines, 'main', renderMain);
+        appendLegendEntries(oscLegend, oscillatorLines, 'main');
     }
 
     function renderMain() { drawMain(); drawOscillator(); }
@@ -593,20 +734,15 @@
         var header = document.createElement('div');
         header.className = 'chart-panel-header';
         var title = document.createElement('h3');
-        title.textContent = 'Chart';
-        var removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.className = 'btn btn-secondary';
-        removeBtn.textContent = 'Remove';
+        title.textContent = panelLabel(panel);
         header.appendChild(title);
-        header.appendChild(removeBtn);
         card.appendChild(header);
 
         var blank = document.createElement('div');
         blank.className = 'blank-panel';
         var placeholder = document.createElement('div');
         placeholder.className = 'blank-panel-placeholder';
-        placeholder.textContent = 'Drag a Line here to plot it.';
+        placeholder.textContent = 'No lines on this chart yet — add one from the Charts panel in the sidebar.';
         blank.appendChild(placeholder);
         card.appendChild(blank);
 
@@ -626,6 +762,7 @@
         var pctx = pCanvas.getContext('2d');
 
         function render() {
+            title.textContent = panelLabel(panel);
             var lines = panel.lines.map(function (id) { return linesById[id]; }).filter(Boolean);
             if (lines.length === 0) {
                 blank.classList.remove('hidden');
@@ -671,7 +808,7 @@
             });
 
             legend.innerHTML = '';
-            appendLegendEntries(legend, lines, panel.id, render);
+            appendLegendEntries(legend, lines, panel.id);
         }
 
         pCanvas.addEventListener('mousemove', function (e) {
@@ -699,47 +836,9 @@
         });
         pCanvas.addEventListener('mouseleave', function () { pTooltip.style.opacity = '0'; });
 
-        wireDropTarget(card, panel, render);
-
-        removeBtn.addEventListener('click', function () {
-            panels = panels.filter(function (p) { return p.id !== panel.id; });
-            extraPanelRenderers = extraPanelRenderers.filter(function (r) { return r.panel.id !== panel.id; });
-            card.remove();
-            persistLayout();
-        });
-
         extraPanelRenderers.push({ panel: panel, render: render, el: card });
         return card;
     }
-
-    function wireDropTarget(el, panel, onDrop) {
-        el.addEventListener('dragover', function (e) {
-            e.preventDefault();
-            el.classList.add('drag-over');
-        });
-        el.addEventListener('dragleave', function () { el.classList.remove('drag-over'); });
-        el.addEventListener('drop', function (e) {
-            e.preventDefault();
-            el.classList.remove('drag-over');
-            var lineId = parseInt(e.dataTransfer.getData('text/plain'), 10);
-            if (!linesById[lineId]) return;
-            if (panel.lines.indexOf(lineId) === -1) panel.lines.push(lineId);
-            persistLayout();
-            onDrop();
-        });
-    }
-
-    // Wire the main chart itself as a drop target too, so dragging a Line
-    // straight onto the price chart works the same way as onto a blank one.
-    wireDropTarget(document.querySelector('.dashboard-main .chart-wrap'), findPanel('main'), renderMain);
-
-    document.querySelectorAll('.line-chip').forEach(function (chip) {
-        chip.addEventListener('dragstart', function (e) {
-            e.dataTransfer.setData('text/plain', chip.getAttribute('data-line-id'));
-            chip.classList.add('dragging');
-        });
-        chip.addEventListener('dragend', function () { chip.classList.remove('dragging'); });
-    });
 
     var addChartBtn = document.getElementById('addChartBtn');
     if (addChartBtn) {
@@ -749,6 +848,7 @@
             var el = createPanelElement(panel);
             document.getElementById('extraPanels').appendChild(el);
             persistLayout();
+            renderSidebar();
         });
     }
 
@@ -763,6 +863,7 @@
         extraPanelRenderers.forEach(function (r) { r.render(); });
     }
     redrawAll();
+    renderSidebar();
     window.addEventListener('resize', redrawAll);
 })();
 </script>
