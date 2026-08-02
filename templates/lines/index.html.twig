@@ -4,8 +4,13 @@
 
 {% block body %}
 <div class="card">
-    <h1>Lines</h1>
-    <p>Formulas you can plot on the dashboard chart and use inside Triggers. Every price-based function uses the adjusted close.</p>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+        <div>
+            <h1>Lines</h1>
+            <p>Formulas you can plot on the dashboard chart and use inside Triggers. Every price-based function uses the adjusted close.</p>
+        </div>
+        <button type="button" class="btn" id="openLineModal" style="white-space:nowrap;">+ New line</button>
+    </div>
 
     {% if added %}
         <div class="notice notice-ok">{{ added }}.</div>
@@ -15,7 +20,7 @@
     {% endif %}
 
     {% if lines is empty %}
-        <p>No lines yet — add one below.</p>
+        <p>No lines yet — add one above.</p>
     {% else %}
         <table>
             <thead>
@@ -50,33 +55,43 @@
     {% endif %}
 </div>
 
-<div class="card">
-    <h2>New line</h2>
-    <form method="post" action="/lines" class="picker-row">
-        <div class="form-group">
-            <label for="name">Name</label>
-            <input type="text" id="name" name="name" placeholder="e.g. 50-day SMA" required>
+<div class="modal-overlay hidden" id="lineModal">
+    <div class="modal-panel">
+        <div class="modal-header">
+            <h2>Line Configuration</h2>
+            <button type="button" class="modal-close" id="closeLineModal" aria-label="Close">&times;</button>
         </div>
-        <div class="form-group">
-            <label for="fn">Function</label>
-            <select id="fn" name="fn">
-                <option value="PRICE">Price</option>
-                <option value="SMA" selected>SMA</option>
-                <option value="EMA">EMA</option>
-                <option value="RSI">RSI</option>
-                <option value="CONSTANT">Constant</option>
-            </select>
-        </div>
-        <div class="form-group" id="periodGroup">
-            <label for="period">Period</label>
-            <input type="number" id="period" name="period" min="1" value="50">
-        </div>
-        <div class="form-group" id="valueGroup" style="display:none">
-            <label for="value">Value</label>
-            <input type="number" id="value" name="value" step="any">
-        </div>
-        <button type="submit" class="btn">Add line</button>
-    </form>
+        <form method="post" action="/lines">
+            <div class="form-group">
+                <label for="name">Name</label>
+                <input type="text" id="name" name="name" placeholder="e.g. 50-day SMA" required>
+            </div>
+
+            <div class="field-chain-label">Line is</div>
+            <div class="field-chain">
+                <select id="fn" name="fn">
+                    <option value="PRICE">Price</option>
+                    <option value="SMA" selected>SMA</option>
+                    <option value="EMA">EMA</option>
+                    <option value="RSI">RSI</option>
+                    <option value="CONSTANT">Constant</option>
+                </select>
+                <div class="form-group" id="periodGroup" style="margin-bottom:0;">
+                    <label for="period">Period</label>
+                    <input type="number" id="period" name="period" min="1" value="50">
+                </div>
+                <div class="form-group" id="valueGroup" style="display:none; margin-bottom:0;">
+                    <label for="value">Value</label>
+                    <input type="number" id="value" name="value" step="any">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancelLineModal">Cancel</button>
+                <button type="submit" class="btn">Add line</button>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}
 
@@ -87,5 +102,19 @@ document.getElementById('fn').addEventListener('change', function () {
     document.getElementById('periodGroup').style.display = (fn === 'PRICE' || fn === 'CONSTANT') ? 'none' : '';
     document.getElementById('valueGroup').style.display = (fn === 'CONSTANT') ? '' : 'none';
 });
+
+(function () {
+    var modal = document.getElementById('lineModal');
+    var openBtn = document.getElementById('openLineModal');
+    if (!modal || !openBtn) return;
+
+    function open() { modal.classList.remove('hidden'); }
+    function close() { modal.classList.add('hidden'); }
+
+    openBtn.addEventListener('click', open);
+    document.getElementById('closeLineModal').addEventListener('click', close);
+    document.getElementById('cancelLineModal').addEventListener('click', close);
+    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+})();
 </script>
 {% endblock %}

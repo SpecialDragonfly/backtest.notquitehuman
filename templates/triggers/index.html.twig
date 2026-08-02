@@ -4,8 +4,15 @@
 
 {% block body %}
 <div class="card">
-    <h1>Triggers</h1>
-    <p>Watch two of your Lines for one crossing above/below the other. When that first becomes true it's a firing — shown here across history, and (once armed) recorded as a live <a href="/alerts">Alert</a> the day it next happens for real.</p>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+        <div>
+            <h1>Triggers</h1>
+            <p>Watch two of your Lines for one crossing above/below the other. When that first becomes true it's a firing — shown here across history, and (once armed) recorded as a live <a href="/alerts">Alert</a> the day it next happens for real.</p>
+        </div>
+        {% if lines|length >= 2 %}
+            <button type="button" class="btn" id="openTriggerModal" style="white-space:nowrap;">+ New trigger</button>
+        {% endif %}
+    </div>
 
     {% if added %}
         <div class="notice notice-ok">{{ added }}.</div>
@@ -15,7 +22,7 @@
     {% endif %}
 
     {% if rows is empty %}
-        <p>No triggers yet — add one below.</p>
+        <p>No triggers yet{{ lines|length < 2 ? ' — you need at least two Lines to build one' : ' — add one above' }}.</p>
     {% else %}
         <table>
             <thead>
@@ -63,49 +70,69 @@
     {% endif %}
 </div>
 
-<div class="card">
-    <h2>New trigger</h2>
-    {% if lines|length < 2 %}
-        <p>You need at least two <a href="/lines">Lines</a> to build a trigger.</p>
-    {% else %}
-        <form method="post" action="/triggers" class="picker-row">
+{% if lines|length >= 2 %}
+<div class="modal-overlay hidden" id="triggerModal">
+    <div class="modal-panel">
+        <div class="modal-header">
+            <h2>Trigger Configuration</h2>
+            <button type="button" class="modal-close" id="closeTriggerModal" aria-label="Close">&times;</button>
+        </div>
+        <form method="post" action="/triggers">
             <div class="form-group">
                 <label for="name">Name</label>
                 <input type="text" id="name" name="name" placeholder="e.g. Golden cross" required>
             </div>
             <div class="form-group">
-                <label for="ticker">Ticker</label>
+                <label for="ticker">For ticker</label>
                 <select id="ticker" name="ticker">
                     {% for t in tickers %}
                         <option value="{{ t }}">{{ t }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="form-group">
-                <label for="line_a_id">Line A</label>
-                <select id="line_a_id" name="line_a_id">
+
+            <div class="field-chain-label">Trigger when</div>
+            <div class="field-chain">
+                <select id="line_a_id" name="line_a_id" aria-label="Line A">
                     {% for line in lines %}
                         <option value="{{ line.id }}">{{ line.name }}</option>
                     {% endfor %}
                 </select>
-            </div>
-            <div class="form-group">
-                <label for="operator">Condition</label>
-                <select id="operator" name="operator">
+                <select id="operator" name="operator" aria-label="Condition">
                     <option value="ABOVE">is above</option>
                     <option value="BELOW">is below</option>
                 </select>
-            </div>
-            <div class="form-group">
-                <label for="line_b_id">Line B</label>
-                <select id="line_b_id" name="line_b_id">
+                <select id="line_b_id" name="line_b_id" aria-label="Line B">
                     {% for line in lines %}
                         <option value="{{ line.id }}" {{ loop.index == 2 ? 'selected' : '' }}>{{ line.name }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn">Add trigger</button>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancelTriggerModal">Cancel</button>
+                <button type="submit" class="btn">Add trigger</button>
+            </div>
         </form>
-    {% endif %}
+    </div>
 </div>
+{% endif %}
+{% endblock %}
+
+{% block javascripts %}
+<script>
+(function () {
+    var modal = document.getElementById('triggerModal');
+    var openBtn = document.getElementById('openTriggerModal');
+    if (!modal || !openBtn) return;
+
+    function open() { modal.classList.remove('hidden'); }
+    function close() { modal.classList.add('hidden'); }
+
+    openBtn.addEventListener('click', open);
+    document.getElementById('closeTriggerModal').addEventListener('click', close);
+    document.getElementById('cancelTriggerModal').addEventListener('click', close);
+    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+})();
+</script>
 {% endblock %}
