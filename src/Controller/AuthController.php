@@ -21,7 +21,7 @@ class AuthController
      */
     public function loginPage(Request $request, Response $response, array $args): Response
     {
-        $response->getBody()->write($this->twig->render('auth/login.html.twig', []));
+        $response->getBody()->write($this->twig->render('auth/login.html.twig', ['isLoggedIn' => false]));
         return $response;
     }
 
