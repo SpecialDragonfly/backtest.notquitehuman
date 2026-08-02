@@ -4,6 +4,7 @@ use App\Controller\AdminTickerController;
 use App\Controller\AuthController;
 use App\Controller\DashboardController;
 use App\Controller\LabController;
+use App\Controller\LineController;
 use App\Middleware\AdminOnlyMiddleware;
 use App\Middleware\GuestBlockMiddleware;
 use App\Middleware\TokenAuthMiddleware;
@@ -33,6 +34,11 @@ return function (App $app) {
     $app->get('/lab/custom',       [LabController::class, 'customForm'])->add(GuestBlockMiddleware::class)->add(TokenAuthMiddleware::class);
     $app->post('/lab/custom',      [LabController::class, 'customRun'])->add(GuestBlockMiddleware::class)->add(TokenAuthMiddleware::class);
     $app->post('/portfolio/apply', [LabController::class, 'apply'])->add(GuestBlockMiddleware::class)->add(TokenAuthMiddleware::class);
+
+    // -- Lines: user-owned chart formulas (auth required, hidden from guests) --
+    $app->get('/lines',              [LineController::class, 'index'])->add(GuestBlockMiddleware::class)->add(TokenAuthMiddleware::class);
+    $app->post('/lines',             [LineController::class, 'create'])->add(GuestBlockMiddleware::class)->add(TokenAuthMiddleware::class);
+    $app->post('/lines/{id}/delete', [LineController::class, 'delete'])->add(GuestBlockMiddleware::class)->add(TokenAuthMiddleware::class);
 
     // -- Admin: ticker universe management (admin only) --
     // TokenAuthMiddleware is added last so it runs first (Slim runs

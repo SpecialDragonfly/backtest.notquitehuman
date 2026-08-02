@@ -68,7 +68,7 @@ class TickerBacktestService
     public function run(string $ticker, string $strategySlug): array
     {
         $symbol = TickerUniverse::toYahooSymbol($ticker);
-        $prices = $this->priceHistoryRepository->getDailyCloses($symbol, self::START, date('Y-m-d'));
+        $prices = $this->loadPrices($ticker);
 
         if (count($prices) < self::MIN_BARS) {
             return [
@@ -105,6 +105,19 @@ class TickerBacktestService
             'trades' => array_reverse($result->trades),
             'summary' => $this->summarise($result),
         ];
+    }
+
+    /**
+     * The same daily price series the chart/strategies are built from —
+     * shared with the Lines dashboard overlay so a custom Line evaluates
+     * against exactly the same bars as the strategy chart it's plotted on.
+     *
+     * @return YahooFinanceData[]
+     */
+    public function loadPrices(string $ticker): array
+    {
+        $symbol = TickerUniverse::toYahooSymbol($ticker);
+        return $this->priceHistoryRepository->getDailyCloses($symbol, self::START, date('Y-m-d'));
     }
 
     /**

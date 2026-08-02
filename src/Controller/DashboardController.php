@@ -2,7 +2,10 @@
 
 namespace App\Controller;
 
+use App\Domain\Line;
 use App\Domain\User;
+use App\Line\FormulaEvaluator;
+use App\Repository\LineRepository;
 use App\Repository\TickerRepository;
 use App\Service\TickerBacktestService;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -27,6 +30,8 @@ class DashboardController
         private Environment $twig,
         private TickerBacktestService $backtestService,
         private TickerRepository $tickerRepository,
+        private LineRepository $lineRepository,
+        private FormulaEvaluator $formulaEvaluator,
     ) {}
 
     /**
@@ -56,6 +61,32 @@ class DashboardController
 
         $run = $this->backtestService->run($ticker, $strategy);
 
+        // Lines are per-user and hidden from guests entirely (same reasoning
+        // as the Lab: the guest account is a single shared row, so per-user
+        // saved state doesn't make sense there).
+        $userLines = $isGuest ? [] : $this->lineRepository->allForUser($user->getId());
+        $selectedLineIds = array_values(array_intersect(
+            array_map('intval', array_filter((array) ($params['lines'] ?? []), 'is_numeric')),
+            array_map(fn(Line $l) => $l->getId(), $userLines),
+        ));
+
+        $chart = $run['chart'];
+        $chart['lines'] = [];
+        if ($run['hasData'] && !empty($selectedLineIds)) {
+            $prices = $this->backtestService->loadPrices($ticker);
+            $linesById = [];
+            foreach ($userLines as $line) {
+                $linesById[$line->getId()] = $line;
+            }
+            foreach ($selectedLineIds as $id) {
+                $chart['lines'][] = [
+                    'id' => $id,
+                    'name' => $linesById[$id]->getName(),
+                    'points' => $this->formulaEvaluator->evaluate($linesById[$id]->getFormula(), $prices),
+                ];
+            }
+        }
+
         $response->getBody()->write($this->twig->render('dashboard/index.html.twig', [
             'isAdmin' => $user instanceof User && $user->isAdmin(),
             'isGuest' => $isGuest,
@@ -65,9 +96,11 @@ class DashboardController
             'selectedStrategy' => $strategy,
             'symbol' => $run['symbol'],
             'hasData' => $run['hasData'],
-            'chartDataJson' => json_encode($run['chart'], JSON_THROW_ON_ERROR),
+            'chartDataJson' => json_encode($chart, JSON_THROW_ON_ERROR),
             'trades' => $run['trades'],
             'summary' => $run['summary'],
+            'userLines' => $userLines,
+            'selectedLineIds' => $selectedLineIds,
         ]));
         return $response;
     }

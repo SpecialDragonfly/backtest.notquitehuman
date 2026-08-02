@@ -21,6 +21,17 @@
                 {% endfor %}
             </select>
         </div>
+        {% if userLines is not empty %}
+            <div class="form-group">
+                <label>Lines</label>
+                {% for line in userLines %}
+                    <label style="font-weight:normal; display:inline-flex; align-items:center; gap:0.3rem; margin-right:1rem;">
+                        <input type="checkbox" name="lines[]" value="{{ line.id }}" onchange="this.form.submit()" {{ line.id in selectedLineIds ? 'checked' : '' }}>
+                        {{ line.name }}
+                    </label>
+                {% endfor %}
+            </div>
+        {% endif %}
     </form>
 </div>
 
@@ -61,7 +72,7 @@
         <canvas id="priceChart"></canvas>
         <div class="chart-tooltip" id="chartTooltip"></div>
     </div>
-    <div class="chart-legend">
+    <div class="chart-legend" id="chartLegend">
         <span><span class="legend-line" style="background:#1c6dd0"></span> {{ symbol }} adj. close</span>
         <span><span class="legend-dot" style="background:#1a8754"></span> Buy</span>
         <span><span class="legend-dot" style="background:#c0362c"></span> Sell</span>
@@ -136,6 +147,13 @@
         return padding.top + (1 - (c - minC) / (maxC - minC)) * (h - padding.top - padding.bottom);
     }
 
+    // Overlay Lines share the price y-axis (see App\Line\FormulaEvaluator) —
+    // sensible for price-scaled lines (SMA/EMA/Price/Constant), but an RSI
+    // line will look squashed/off-scale here since it's plotted 0-100
+    // against price's own range. Known v1 limitation, not a bug.
+    var overlayLines = data.lines || [];
+    var palette = ['#b3690a', '#7e3ff2', '#0a9396', '#c9184a', '#495057'];
+
     function draw() {
         var w = canvas.clientWidth, h = canvas.clientHeight;
         canvas.width = w * dpr;
@@ -169,6 +187,21 @@
         });
         ctx.stroke();
 
+        // Overlay lines — one path per line, skipping gaps where a formula
+        // is still warming up (v === null) rather than drawing through them.
+        overlayLines.forEach(function (line, li) {
+            ctx.strokeStyle = palette[li % palette.length];
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            var started = false;
+            line.points.forEach(function (p) {
+                if (p.v === null) { started = false; return; }
+                var x = xFor(p.t, w), y = yFor(p.v, h);
+                if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+            });
+            ctx.stroke();
+        });
+
         // Signal markers
         (data.signals || []).forEach(function (s) {
             var x = xFor(s.t, w), y = yFor(s.p, h);
@@ -179,27 +212,44 @@
         });
     }
 
-    function nearestPoint(x, w) {
+    var legend = document.getElementById('chartLegend');
+    overlayLines.forEach(function (line, li) {
+        var span = document.createElement('span');
+        var dot = document.createElement('span');
+        dot.className = 'legend-line';
+        dot.style.background = palette[li % palette.length];
+        span.appendChild(dot);
+        span.appendChild(document.createTextNode(' ' + line.name));
+        legend.appendChild(span);
+    });
+
+    function nearestIndex(x, w) {
         var t = minT + (x - padding.left) / (w - padding.left - padding.right) * (maxT - minT);
         var lo = 0, hi = prices.length - 1;
         while (lo < hi) {
             var mid = (lo + hi) >> 1;
             if (prices[mid].t < t) lo = mid + 1; else hi = mid;
         }
-        return prices[lo];
+        return lo;
     }
 
     canvas.addEventListener('mousemove', function (e) {
         var rect = canvas.getBoundingClientRect();
         var x = e.clientX - rect.left, w = canvas.clientWidth, h = canvas.clientHeight;
-        var p = nearestPoint(x, w);
+        var i = nearestIndex(x, w);
+        var p = prices[i];
         if (!p) return;
         var px = xFor(p.t, w), py = yFor(p.c, h);
         tooltip.style.left = px + 'px';
         tooltip.style.top = (py - 10) + 'px';
         tooltip.style.opacity = '1';
         var d = new Date(p.t * 1000);
-        tooltip.textContent = d.toISOString().slice(0, 10) + '  ' + p.c.toFixed(2);
+        var text = d.toISOString().slice(0, 10) + '  ' + p.c.toFixed(2);
+        overlayLines.forEach(function (line) {
+            var lv = line.points[i] ? line.points[i].v : null;
+            if (lv !== null) text += '\n' + line.name + ': ' + lv.toFixed(2);
+        });
+        tooltip.textContent = text;
     });
     canvas.addEventListener('mouseleave', function () {
         tooltip.style.opacity = '0';

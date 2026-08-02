@@ -1,0 +1,91 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Lines — Backtest{% endblock %}
+
+{% block body %}
+<div class="card">
+    <h1>Lines</h1>
+    <p>Formulas you can plot on the dashboard chart and use inside Triggers. Every price-based function uses the adjusted close.</p>
+
+    {% if added %}
+        <div class="notice notice-ok">{{ added }}.</div>
+    {% endif %}
+    {% if error %}
+        <div class="notice notice-error">{{ error }}</div>
+    {% endif %}
+
+    {% if lines is empty %}
+        <p>No lines yet — add one below.</p>
+    {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Formula</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for line in lines %}
+                <tr>
+                    <td>{{ line.name }}</td>
+                    <td>
+                        {% if line.formula.fn == 'PRICE' %}
+                            Price (adj. close)
+                        {% elseif line.formula.fn == 'CONSTANT' %}
+                            Constant ({{ line.formula.value }})
+                        {% else %}
+                            {{ line.formula.fn }}({{ line.formula.period }})
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="post" action="/lines/{{ line.id }}/delete">
+                            <button type="submit" class="btn btn-secondary">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>New line</h2>
+    <form method="post" action="/lines" class="picker-row">
+        <div class="form-group">
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" placeholder="e.g. 50-day SMA" required>
+        </div>
+        <div class="form-group">
+            <label for="fn">Function</label>
+            <select id="fn" name="fn">
+                <option value="PRICE">Price</option>
+                <option value="SMA" selected>SMA</option>
+                <option value="EMA">EMA</option>
+                <option value="RSI">RSI</option>
+                <option value="CONSTANT">Constant</option>
+            </select>
+        </div>
+        <div class="form-group" id="periodGroup">
+            <label for="period">Period</label>
+            <input type="number" id="period" name="period" min="1" value="50">
+        </div>
+        <div class="form-group" id="valueGroup" style="display:none">
+            <label for="value">Value</label>
+            <input type="number" id="value" name="value" step="any">
+        </div>
+        <button type="submit" class="btn">Add line</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+<script>
+document.getElementById('fn').addEventListener('change', function () {
+    var fn = this.value;
+    document.getElementById('periodGroup').style.display = (fn === 'PRICE' || fn === 'CONSTANT') ? 'none' : '';
+    document.getElementById('valueGroup').style.display = (fn === 'CONSTANT') ? '' : 'none';
+});
+</script>
+{% endblock %}

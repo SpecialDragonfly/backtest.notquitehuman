@@ -18,6 +18,7 @@
         </div>
         <nav class="header-nav">
             <a href="/">Dashboard</a>
+            {% if not isGuest %}<a href="/lines">Lines</a>{% endif %}
             {% if not isGuest %}<a href="/lab">Lab</a>{% endif %}
             {% if isAdmin %}<a href="/admin/tickers">Admin</a>{% endif %}
             <a href="#" class="logout-btn">Logout</a>

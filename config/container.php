@@ -5,6 +5,7 @@ use App\Controller\AdminTickerController;
 use App\Controller\AuthController;
 use App\Controller\DashboardController;
 use App\Controller\LabController;
+use App\Controller\LineController;
 use App\Line\FormulaEvaluator;
 use App\Line\TriggerEvaluationService;
 use App\Middleware\AdminOnlyMiddleware;
@@ -158,6 +159,8 @@ return [
         containerGet($c, Environment::class),
         containerGet($c, TickerBacktestService::class),
         containerGet($c, TickerRepository::class),
+        containerGet($c, LineRepository::class),
+        containerGet($c, FormulaEvaluator::class),
     ),
     LabController::class => fn(ContainerInterface $c) => new LabController(
         containerGet($c, Environment::class),
@@ -171,5 +174,9 @@ return [
         containerGet($c, TickerRepository::class),
         containerGet($c, PriceHistoryRepository::class),
         containerGet($c, PriceSyncService::class),
+    ),
+    LineController::class => fn(ContainerInterface $c) => new LineController(
+        containerGet($c, Environment::class),
+        containerGet($c, LineRepository::class),
     ),
 ];
